@@ -1,0 +1,733 @@
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+// ─────────────────────────────────────────────
+//  LOADING UI
+// ─────────────────────────────────────────────
+const loadingScreen = document.getElementById('loading-screen');
+const loadingBar    = document.getElementById('loading-bar-fill');
+const loadingStatus = document.getElementById('loading-status');
+
+function setLoadProgress(pct, msg) {
+  loadingBar.style.width = pct + '%';
+  if (msg) loadingStatus.textContent = msg;
+}
+
+function hideLoadingScreen() {
+  loadingScreen.classList.add('fade-out');
+  setTimeout(() => loadingScreen.remove(), 900);
+}
+
+// ─────────────────────────────────────────────
+//  RENDERER
+// ─────────────────────────────────────────────
+setLoadProgress(5, 'INITIALIZING RENDERER...');
+
+const container = document.getElementById('canvas-container');
+const renderer  = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled   = false;
+renderer.toneMapping         = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.4;
+container.appendChild(renderer.domElement);
+
+// ─────────────────────────────────────────────
+//  SCENE / CAMERA
+// ─────────────────────────────────────────────
+const scene  = new THREE.Scene();
+scene.background = new THREE.Color(0x3a6a9a);
+scene.fog        = new THREE.FogExp2(0x3a6a9a, 0.0012);
+
+const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.5, 3000);
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ─────────────────────────────────────────────
+//  LIGHTING
+// ─────────────────────────────────────────────
+setLoadProgress(10, 'SETTING UP LIGHTS...');
+
+scene.add(new THREE.HemisphereLight(0x87ceeb, 0x6a9f5b, 2.2));
+
+const sun = new THREE.DirectionalLight(0xfff8e0, 5.0);
+sun.position.set(200, 400, 100);
+sun.castShadow = false;
+scene.add(sun);
+
+const fill = new THREE.DirectionalLight(0xd0e8ff, 1.2);
+fill.position.set(-150, 100, -200);
+fill.castShadow = false;
+scene.add(fill);
+
+// ─────────────────────────────────────────────
+//  GROUND (streets + sidewalks + grass)
+// ─────────────────────────────────────────────
+setLoadProgress(15, 'LAYING GROUND...');
+
+(function buildGround() {
+  const S      = 2048;
+  const BLOCKS = 6;
+  const BK     = S / BLOCKS;
+  const ROAD   = BK * 0.24;
+  const SIDEW  = BK * 0.055;
+
+  const cvs = document.createElement('canvas');
+  cvs.width = cvs.height = S;
+  const ctx = cvs.getContext('2d');
+
+  ctx.fillStyle = '#5f6672';
+  ctx.fillRect(0, 0, S, S);
+
+  for (let bx = 0; bx < BLOCKS; bx++) {
+    for (let bz = 0; bz < BLOCKS; bz++) {
+      const x1 = bx * BK + ROAD / 2;
+      const z1 = bz * BK + ROAD / 2;
+      const w  = BK - ROAD;
+      const h  = BK - ROAD;
+
+      ctx.fillStyle = '#c8cacf';
+      ctx.fillRect(x1, z1, w, h);
+
+      ctx.fillStyle = '#4e8035';
+      ctx.fillRect(x1 + SIDEW, z1 + SIDEW, w - SIDEW * 2, h - SIDEW * 2);
+
+      ctx.fillStyle = 'rgba(30,70,10,0.18)';
+      for (let p = 0; p < 18; p++) {
+        const px = x1 + SIDEW + Math.random() * (w - SIDEW * 2);
+        const pz = z1 + SIDEW + Math.random() * (h - SIDEW * 2);
+        ctx.fillRect(px, pz, 6 + Math.random() * 12, 3 + Math.random() * 6);
+      }
+    }
+  }
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+  ctx.lineWidth   = 2.5;
+  for (let i = 0; i <= BLOCKS; i++) {
+    const p = i * BK;
+    for (const off of [-(ROAD / 2 - 3), (ROAD / 2 - 3)]) {
+      ctx.beginPath(); ctx.moveTo(p + off, 0); ctx.lineTo(p + off, S); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, p + off); ctx.lineTo(S, p + off); ctx.stroke();
+    }
+  }
+
+  ctx.strokeStyle = 'rgba(255,210,0,0.75)';
+  ctx.lineWidth   = 2.5;
+  ctx.setLineDash([BK * 0.1, BK * 0.07]);
+  for (let i = 0; i <= BLOCKS; i++) {
+    const p = i * BK;
+    ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, S); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(S, p); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  const tex = new THREE.CanvasTexture(cvs);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(36, 36);
+
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(6000, 6000),
+    new THREE.MeshLambertMaterial({ map: tex })
+  );
+  ground.rotation.x = -Math.PI / 2;
+  scene.add(ground);
+})();
+
+// ─────────────────────────────────────────────
+//  KENNEY CITY ASSETS
+// ─────────────────────────────────────────────
+setLoadProgress(20, 'LOADING CITY ASSETS...');
+
+const BUILDING_FILES = [
+  'building-type-a', 'building-type-b', 'building-type-c',
+  'building-type-d', 'building-type-e', 'building-type-f',
+  'building-type-g', 'building-type-h', 'building-type-i',
+  'building-type-j', 'building-type-k', 'building-type-l',
+  'building-type-m', 'building-type-n', 'building-type-o',
+  'building-type-p', 'building-type-q', 'building-type-r',
+  'building-type-s', 'building-type-t', 'building-type-u',
+];
+const TREE_FILES  = ['tree-large', 'tree-small'];
+const ASSETS_PATH = 'assets/city/';
+
+const gltfLoader     = new GLTFLoader();
+const buildingGLBs   = [];
+const treesGLBs      = [];
+const buildingMeshes = [];
+const buildingData   = []; // { cx, cz, xzRadius, maxY, meshes } per building
+
+let totalAssets  = BUILDING_FILES.length + TREE_FILES.length + 2; // +2 for fly + float hero
+let loadedAssets = 0;
+
+function onAssetLoaded() {
+  loadedAssets++;
+  const pct = 20 + Math.round((loadedAssets / totalAssets) * 60);
+  setLoadProgress(pct, `LOADING ASSETS... ${loadedAssets}/${totalAssets}`);
+}
+
+const buildingPromises = BUILDING_FILES.map(name =>
+  new Promise(resolve => {
+    gltfLoader.load(`${ASSETS_PATH}${name}.glb`,
+      gltf => {
+        const root = gltf.scene;
+        root.scale.setScalar(28);
+        root.traverse(child => {
+          if (child.isMesh) {
+            child.castShadow    = false;
+            child.receiveShadow = false;
+            if (child.material) {
+              const old = child.material;
+              child.material = new THREE.MeshLambertMaterial({
+                map:         old.map         || null,
+                color:       old.color       || new THREE.Color(1, 1, 1),
+                transparent: old.transparent || false,
+                alphaTest:   old.alphaTest   || 0,
+              });
+              old.dispose();
+            }
+          }
+        });
+        buildingGLBs.push(root);
+        onAssetLoaded();
+        resolve();
+      },
+      undefined,
+      () => { onAssetLoaded(); resolve(); }
+    );
+  })
+);
+
+const treePromises = TREE_FILES.map(name =>
+  new Promise(resolve => {
+    gltfLoader.load(`${ASSETS_PATH}${name}.glb`,
+      gltf => {
+        const root = gltf.scene;
+        root.scale.setScalar(10);
+        root.traverse(child => {
+          if (child.isMesh) { child.castShadow = false; child.receiveShadow = false; }
+        });
+        treesGLBs.push(root);
+        onAssetLoaded();
+        resolve();
+      },
+      undefined,
+      () => { onAssetLoaded(); resolve(); }
+    );
+  })
+);
+
+// ─────────────────────────────────────────────
+//  HERO GROUP
+// ─────────────────────────────────────────────
+const hero = new THREE.Group();
+scene.add(hero);
+hero.position.set(0, 100, 0);
+
+let flyModel   = null;  // Thunderclap (1).glb  — shown while flying
+let floatModel = null;  // Thunderclap2.glb     — shown while hovering
+
+// ── Shared helper: orient a loaded GLB for flying pose ──
+function orientModelForFlight(model) {
+  const box0   = new THREE.Box3().setFromObject(model);
+  const size0  = box0.getSize(new THREE.Vector3());
+  const maxDim = Math.max(size0.x, size0.y, size0.z);
+  model.scale.setScalar(5 / maxDim);
+
+  model.rotation.order = 'ZXY';
+  model.rotation.x = -Math.PI / 2 + 0.35; // nose-up tilt
+  model.rotation.z = -Math.PI / 2;
+
+  const box1   = new THREE.Box3().setFromObject(model);
+  const centre = box1.getCenter(new THREE.Vector3());
+  model.position.sub(centre);
+
+  model.traverse(child => {
+    if (child.isMesh) { child.castShadow = false; child.receiveShadow = false; }
+  });
+}
+
+// ── Fly model (Thunderclap (1).glb) ──
+const heroFlyPromise = new Promise(resolve => {
+  gltfLoader.load('Thunderclap (1).glb',
+    gltf => {
+      flyModel = gltf.scene;
+      orientModelForFlight(flyModel);
+      flyModel.visible = true;
+      hero.add(flyModel);
+      onAssetLoaded();
+      resolve();
+    },
+    undefined,
+    err => {
+      console.warn('Fly model failed, using placeholder:', err);
+      flyModel = buildPlaceholderHero();
+      flyModel.visible = true;
+      onAssetLoaded();
+      resolve();
+    }
+  );
+});
+
+// ── Float model (Thunderclap2.glb) ──
+const heroFloatPromise = new Promise(resolve => {
+  gltfLoader.load('Thunderclap2.glb',
+    gltf => {
+      floatModel = gltf.scene;
+      // Float model stays upright — just scale and centre it
+      const box0   = new THREE.Box3().setFromObject(floatModel);
+      const size0  = box0.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size0.x, size0.y, size0.z);
+      floatModel.scale.setScalar(5 / maxDim);
+
+      const box1   = new THREE.Box3().setFromObject(floatModel);
+      const centre = box1.getCenter(new THREE.Vector3());
+      floatModel.position.sub(centre);
+
+      floatModel.traverse(child => {
+        if (child.isMesh) { child.castShadow = false; child.receiveShadow = false; }
+      });
+
+      // Model faces +X natively; rotate +90° around Y so back (-X) faces camera (+Z)
+      floatModel.rotation.set(0, Math.PI / 2, 0);
+
+      floatModel.visible = false;
+      hero.add(floatModel);
+      onAssetLoaded();
+      resolve();
+    },
+    undefined,
+    err => {
+      console.warn('Float model (Thunderclap2.glb) not found, reusing fly model for hover.');
+      // Graceful fallback: just use a copy of the placeholder
+      floatModel = buildPlaceholderHero();
+      floatModel.visible = false;
+      onAssetLoaded();
+      resolve();
+    }
+  );
+});
+
+function buildPlaceholderHero() {
+  const group    = new THREE.Group();
+  const bodyMat  = new THREE.MeshLambertMaterial({ color: 0x2255aa });
+  const accentMat= new THREE.MeshLambertMaterial({ color: 0x00cfff, emissive: 0x006688 });
+
+  // Flying pose: body along -Z, head at front
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.0, 2.4), bodyMat);
+  group.add(torso);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.65, 16, 12), bodyMat);
+  head.position.set(0, 0.2, -1.9);
+  group.add(head);
+
+  [-1.9, 1.9].forEach(x => {
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.45, 0.45), bodyMat);
+    arm.position.set(x, 0, 0);
+    group.add(arm);
+  });
+
+  [-0.45, 0.45].forEach(x => {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 1.8), bodyMat);
+    leg.position.set(x, 0, 2.0);
+    group.add(leg);
+  });
+
+  const bolt = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.12, 1.0), accentMat);
+  bolt.position.set(0.2, -0.52, 0);
+  group.add(bolt);
+
+  hero.add(group);
+  return group;
+}
+
+// ─────────────────────────────────────────────
+//  ELECTRICITY TRAIL  (3 layered lines for thickness + glow)
+// ─────────────────────────────────────────────
+const TRAIL_LEN  = 80;
+const NUM_TRAILS = 3;
+
+// Per-trail config: [color, opacity]
+const TRAIL_CONFIGS = [
+  [0xffffff, 1.0],   // bright white core
+  [0x88eeff, 0.85],  // cyan mid
+  [0x2299ff, 0.65],  // blue outer
+];
+
+const trailBufs  = TRAIL_CONFIGS.map(() => {
+  const buf = new Float32Array(TRAIL_LEN * 3);
+  for (let i = 0; i < TRAIL_LEN; i++) { buf[i*3] = 0; buf[i*3+1] = 100; buf[i*3+2] = 0; }
+  return buf;
+});
+
+const trailLines = TRAIL_CONFIGS.map(([color, opacity], idx) => {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(trailBufs[idx], 3));
+  geo.setDrawRange(0, TRAIL_LEN);
+  const mat  = new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+  const line = new THREE.Line(geo, mat);
+  line.frustumCulled = false;
+  scene.add(line);
+  return { line, geo };
+});
+
+// Persistent electric glow that follows the hero
+const heroElectricGlow = new THREE.PointLight(0x55ccff, 4, 40);
+hero.add(heroElectricGlow);
+
+let trailTick = 0; // counts frames, used to control jitter frequency
+
+// ─────────────────────────────────────────────
+//  CITY PLACEMENT
+// ─────────────────────────────────────────────
+function buildCity() {
+  if (buildingGLBs.length === 0) return;
+  setLoadProgress(82, 'CONSTRUCTING CITY...');
+
+  const CITY_RADIUS  = 650;
+  const EXCLUDE_NEAR = 110;
+  const MIN_DIST     = 80;
+  const TARGET_COUNT = 230;
+  const MAX_TRIES    = 12000;
+
+  const placed = [];
+
+  function tooClose(x, z) {
+    if (Math.abs(x) < EXCLUDE_NEAR && Math.abs(z) < EXCLUDE_NEAR) return true;
+    const minD2 = MIN_DIST * MIN_DIST;
+    for (let i = 0; i < placed.length; i++) {
+      const dx = x - placed[i].x, dz = z - placed[i].z;
+      if (dx * dx + dz * dz < minD2) return true;
+    }
+    return false;
+  }
+
+  let tries = 0;
+  while (placed.length < TARGET_COUNT && tries < MAX_TRIES) {
+    tries++;
+    const angle = Math.random() * Math.PI * 2;
+    const r     = Math.sqrt(Math.random()) * CITY_RADIUS;
+    const x     = Math.cos(angle) * r;
+    const z     = Math.sin(angle) * r;
+
+    if (tooClose(x, z)) continue;
+    placed.push({ x, z });
+
+    const isSkyscraper = placed.length % 3 === 0;
+    const src          = buildingGLBs[Math.floor(Math.random() * buildingGLBs.length)];
+    const building     = src.clone(true);
+
+    building.position.set(x, 0, z);
+    building.rotation.y = Math.random() * Math.PI * 2;
+
+    const s = 0.85 + Math.random() * 0.55;
+    building.scale.multiplyScalar(s);
+
+    if (isSkyscraper) building.scale.y *= 4 + Math.random() * 5;
+
+    scene.add(building);
+
+    const bMeshes = [];
+    building.traverse(child => { if (child.isMesh) bMeshes.push(child); });
+    const bbox = new THREE.Box3().setFromObject(building);
+    const bcx = (bbox.min.x + bbox.max.x) / 2, bcz = (bbox.min.z + bbox.max.z) / 2;
+    const bdx = bbox.max.x - bbox.min.x, bdz = bbox.max.z - bbox.min.z;
+    buildingData.push({ cx: bcx, cz: bcz, xzRadius: Math.sqrt(bdx * bdx + bdz * bdz) / 2, maxY: bbox.max.y, meshes: bMeshes });
+    if (buildingMeshes.length < 300) buildingMeshes.push(...bMeshes);
+
+    if (treesGLBs.length > 0 && Math.random() < 0.18) {
+      const tree = treesGLBs[Math.floor(Math.random() * treesGLBs.length)].clone(true);
+      const ta   = Math.random() * Math.PI * 2;
+      const td   = 45 + Math.random() * 15;
+      tree.position.set(x + Math.cos(ta) * td, 0, z + Math.sin(ta) * td);
+      tree.rotation.y = Math.random() * Math.PI * 2;
+      scene.add(tree);
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
+//  INPUT
+// ─────────────────────────────────────────────
+const keys = {};
+window.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (e.code === 'KeyH') toggleFloat();
+  e.preventDefault();
+});
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+// ─────────────────────────────────────────────
+//  FLOAT MODE
+// ─────────────────────────────────────────────
+let isFloating   = false;
+const floatBtn   = document.getElementById('float-btn');
+
+function toggleFloat() {
+  isFloating = !isFloating;
+
+  if (flyModel)   flyModel.visible   = !isFloating;
+  if (floatModel) floatModel.visible =  isFloating;
+
+  floatBtn.textContent = isFloating ? '⏸ HOVER' : '▶ FLY';
+  floatBtn.className   = isFloating ? 'hover-mode' : 'fly-mode';
+
+  // Level out pitch so hover looks natural
+  if (isFloating) pitchAngle = 0;
+}
+
+floatBtn.addEventListener('click', toggleFloat);
+
+// ─────────────────────────────────────────────
+//  FLIGHT PHYSICS
+// ─────────────────────────────────────────────
+const BASE_SPEED = 40;
+const BOOST_MULT = 2.5;
+const PITCH_RATE = 1.2;
+const YAW_RATE   = 0.9;
+const MAX_PITCH  = Math.PI / 2.2;
+const CAM_LERP   = 0.06;
+
+let pitchAngle = 0;
+let yawAngle   = 0;
+
+// Camera sits low and behind, looking up at hero
+const cameraOffset = new THREE.Vector3(0, 2, 20);
+const camCurrentPos  = new THREE.Vector3();
+const camCurrentLook = new THREE.Vector3();
+
+// Reusable per-frame objects (zero allocations in animate)
+const _fwd       = new THREE.Vector3();
+const _desiredP  = new THREE.Vector3();
+const _desiredL  = new THREE.Vector3();
+const _pitchAxis = new THREE.Vector3(1, 0, 0);
+const _yawAxis   = new THREE.Vector3(0, 1, 0);
+const _rollAxis  = new THREE.Vector3(0, 0, 1);
+const _pitchQ    = new THREE.Quaternion();
+const _yawQ      = new THREE.Quaternion();
+const _rollQ     = new THREE.Quaternion();
+
+const boostIndicator = document.getElementById('boost-indicator');
+
+// ─────────────────────────────────────────────
+//  LIGHTNING  (continuous stream while F held)
+// ─────────────────────────────────────────────
+const raycaster        = new THREE.Raycaster();
+let   boltGroup        = null;  // THREE.Group holding all bolt lines
+
+// ── Mesh-accurate building collision ──
+const colRaycaster   = new THREE.Raycaster();
+const HERO_COL_RADIUS = 2;
+const COL_DIRS = [
+  new THREE.Vector3( 1, 0,  0), new THREE.Vector3(-1, 0,  0),
+  new THREE.Vector3( 0, 0,  1), new THREE.Vector3( 0, 0, -1),
+  new THREE.Vector3( 0.707, 0,  0.707), new THREE.Vector3(-0.707, 0,  0.707),
+  new THREE.Vector3( 0.707, 0, -0.707), new THREE.Vector3(-0.707, 0, -0.707),
+];
+
+function heroHitsBuilding(pos) {
+  for (const bd of buildingData) {
+    if (pos.y > bd.maxY + HERO_COL_RADIUS) continue;
+    const dx = pos.x - bd.cx, dz = pos.z - bd.cz;
+    const threshold = bd.xzRadius + HERO_COL_RADIUS;
+    if (dx * dx + dz * dz > threshold * threshold) continue;
+    colRaycaster.far = HERO_COL_RADIUS;
+    for (const dir of COL_DIRS) {
+      colRaycaster.set(pos, dir);
+      if (colRaycaster.intersectObjects(bd.meshes, false).length > 0) return true;
+    }
+  }
+  return false;
+}
+let   boltTimer        = 0;
+let   lightningCooldown = 0;
+const BOLT_DURATION    = 0.10;
+const BOLT_COOLDOWN    = 0.055;
+
+// Bolt layers: [color, jitter multiplier] — white core + progressively wider cyan/blue
+const BOLT_LAYERS = [
+  [0xffffff, 0.3],
+  [0x88ddff, 0.8],
+  [0x44aaff, 1.4],
+  [0x2266ff, 2.0],
+];
+
+function fireLightning() {
+  _fwd.set(0, 0, -1).applyQuaternion(hero.quaternion).normalize();
+
+  const handOffset = new THREE.Vector3(0.9, -0.3, -1.5).applyQuaternion(hero.quaternion);
+  const origin     = hero.position.clone().add(handOffset);
+
+  raycaster.set(origin, _fwd);
+  const hits     = raycaster.intersectObjects(buildingMeshes, false);
+  const endPoint = hits.length > 0
+    ? hits[0].point.clone()
+    : origin.clone().addScaledVector(_fwd, 400);
+
+  if (boltGroup) { scene.remove(boltGroup); boltGroup = null; }
+
+  boltGroup = new THREE.Group();
+  for (const [color, jitterMult] of BOLT_LAYERS) {
+    const pts  = buildJaggedLine(origin, endPoint, 18, 3.5 * jitterMult);
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({ color, transparent: true, opacity: 1.0 })
+    );
+    boltGroup.add(line);
+  }
+  boltTimer = BOLT_DURATION;
+  scene.add(boltGroup);
+
+  const impact = new THREE.PointLight(0x88ddff, 60, 150);
+  impact.position.copy(endPoint);
+  scene.add(impact);
+  setTimeout(() => scene.remove(impact), 120);
+
+  const muzzle = new THREE.PointLight(0xffffff, 80, 50);
+  muzzle.position.copy(origin);
+  scene.add(muzzle);
+  setTimeout(() => scene.remove(muzzle), 80);
+}
+
+function buildJaggedLine(from, to, segments, maxOffset) {
+  const pts = [from.clone()];
+  for (let i = 1; i < segments; i++) {
+    const t = i / segments;
+    const p = new THREE.Vector3().lerpVectors(from, to, t);
+    p.x += (Math.random() - 0.5) * maxOffset * 2;
+    p.y += (Math.random() - 0.5) * maxOffset * 2;
+    p.z += (Math.random() - 0.5) * maxOffset * 2;
+    pts.push(p);
+    if (Math.random() < 0.3 && i < segments - 3) {
+      const forkEnd = to.clone().add(new THREE.Vector3(
+        (Math.random()-0.5)*40, (Math.random()-0.5)*40, (Math.random()-0.5)*40
+      ));
+      buildJaggedLine(p.clone(), forkEnd, 5, maxOffset * 0.5).forEach(fp => pts.push(fp));
+      pts.push(p.clone());
+    }
+  }
+  pts.push(to.clone());
+  return pts;
+}
+
+// ─────────────────────────────────────────────
+//  INIT SEQUENCE
+// ─────────────────────────────────────────────
+const clock = new THREE.Clock();
+let   ready  = false;
+
+const allPromises = [...buildingPromises, ...treePromises, heroFlyPromise, heroFloatPromise];
+
+Promise.all(allPromises).then(() => {
+  buildCity();
+  setLoadProgress(98, 'READY FOR TAKEOFF...');
+
+  camCurrentPos.copy(hero.position).add(new THREE.Vector3(0, 2, 20));
+  camCurrentLook.copy(hero.position);
+
+  setTimeout(() => {
+    setLoadProgress(100, 'LAUNCHING...');
+    setTimeout(() => {
+      hideLoadingScreen();
+      ready = true;
+      clock.start();
+      renderer.setAnimationLoop(animate);
+    }, 400);
+  }, 300);
+});
+
+// ─────────────────────────────────────────────
+//  ANIMATION LOOP
+// ─────────────────────────────────────────────
+function animate() {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  if (!ready) return;
+
+  const t = clock.elapsedTime;
+
+  // ── Input / flight ──
+  const boosting = !!keys['Space'] && !isFloating;
+  const speed    = isFloating ? 0 : BASE_SPEED * (boosting ? BOOST_MULT : 1.0);
+
+  if (keys['ArrowUp'])    pitchAngle = Math.min(pitchAngle + PITCH_RATE * dt,  MAX_PITCH);
+  if (keys['ArrowDown'])  pitchAngle = Math.max(pitchAngle - PITCH_RATE * dt, -MAX_PITCH);
+  if (keys['ArrowLeft'])  yawAngle  += YAW_RATE * dt;
+  if (keys['ArrowRight']) yawAngle  -= YAW_RATE * dt;
+
+  // Floating: level out pitch naturally
+  if (isFloating || (!keys['ArrowUp'] && !keys['ArrowDown'])) pitchAngle *= 0.97;
+
+  // ── Orientation ──
+  _pitchQ.setFromAxisAngle(_pitchAxis, pitchAngle);
+  _yawQ.setFromAxisAngle(_yawAxis, yawAngle);
+  const rollAmt = !isFloating && keys['ArrowLeft'] ? 0.38
+                : !isFloating && keys['ArrowRight'] ? -0.38 : 0;
+  _rollQ.setFromAxisAngle(_rollAxis, rollAmt);
+  hero.quaternion.copy(_yawQ).multiply(_pitchQ).multiply(_rollQ);
+
+  // ── Movement ──
+  _fwd.set(0, 0, -1).applyQuaternion(hero.quaternion).normalize();
+  const _tentative = hero.position.clone().addScaledVector(_fwd, speed * dt);
+  _tentative.y = Math.max(4, _tentative.y);
+
+  // Building collision: sphere-cast against actual mesh geometry
+  if (!heroHitsBuilding(_tentative)) {
+    hero.position.copy(_tentative);
+  } else {
+    // Allow vertical escape only
+    const _vertOnly = new THREE.Vector3(hero.position.x, _tentative.y, hero.position.z);
+    if (!heroHitsBuilding(_vertOnly)) hero.position.y = _tentative.y;
+  }
+
+  // ── Camera (higher, slight look-down on hero) ──
+  // Lift camera extra when pitching steeply upward so hero stays on screen
+  _desiredP.copy(cameraOffset).applyQuaternion(_yawQ).add(hero.position);
+  _desiredP.y += Math.max(0, pitchAngle) * 22;
+  _desiredL.copy(hero.position).add(new THREE.Vector3(0, 3, 0));
+  camCurrentPos.lerp(_desiredP,  CAM_LERP);
+  camCurrentLook.lerp(_desiredL, CAM_LERP);
+  camera.position.copy(camCurrentPos);
+  camera.lookAt(camCurrentLook);
+
+  // ── Electricity trail (always visible, jitter intensifies during boost) ──
+  trailTick++;
+  const trailSpreads = [0.3, 1.0, 1.8];
+  for (let ti = 0; ti < trailBufs.length; ti++) {
+    const buf    = trailBufs[ti];
+    const spread = trailSpreads[ti];
+    for (let i = TRAIL_LEN - 1; i > 0; i--) {
+      buf[i * 3]     = buf[(i - 1) * 3];
+      buf[i * 3 + 1] = buf[(i - 1) * 3 + 1];
+      buf[i * 3 + 2] = buf[(i - 1) * 3 + 2];
+    }
+    const jitter = boosting ? spread * 2.5 : spread * 1.2;
+    buf[0] = hero.position.x + (Math.random() - 0.5) * jitter;
+    buf[1] = hero.position.y + (Math.random() - 0.5) * jitter;
+    buf[2] = hero.position.z + (Math.random() - 0.5) * jitter;
+    trailLines[ti].geo.attributes.position.needsUpdate = true;
+    trailLines[ti].line.material.opacity = TRAIL_CONFIGS[ti][1];
+  }
+
+  // Electric glow: pulses hard during boost, dim otherwise
+  heroElectricGlow.intensity = boosting ? 5 + Math.sin(t * 22) * 2 : (isFloating ? 0.5 : 1.0);
+
+  // ── Lightning (continuous while F held, fires every BOLT_COOLDOWN seconds) ──
+  lightningCooldown -= dt;
+  if (keys['KeyF'] && lightningCooldown <= 0) {
+    fireLightning();
+    lightningCooldown = BOLT_COOLDOWN;
+  }
+
+  if (boltGroup) {
+    boltTimer -= dt;
+    if (boltTimer <= 0) { scene.remove(boltGroup); boltGroup = null; }
+  }
+
+  // ── HUD ──
+  boostIndicator.classList.toggle('active', boosting);
+
+  renderer.render(scene, camera);
+}

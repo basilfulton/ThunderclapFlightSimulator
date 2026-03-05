@@ -1,0 +1,226 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: #000;
+  overflow: hidden;
+  font-family: 'Courier New', monospace;
+}
+
+#canvas-container {
+  width: 100vw;
+  height: 100vh;
+}
+
+/* ── HUD ── */
+#hud {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 10;
+}
+
+#speed-display {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  color: #00cfff;
+  text-shadow: 0 0 10px #00cfff, 0 0 20px #00cfff;
+}
+
+#speed-label {
+  font-size: 11px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  opacity: 0.7;
+  margin-bottom: 4px;
+}
+
+#speed-value {
+  font-size: 36px;
+  font-weight: bold;
+  letter-spacing: 2px;
+}
+
+#boost-indicator {
+  position: absolute;
+  bottom: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 13px;
+  letter-spacing: 6px;
+  color: #ffdd00;
+  text-shadow: 0 0 12px #ffdd00, 0 0 24px #ff8800;
+  text-transform: uppercase;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+#boost-indicator.active {
+  opacity: 1;
+}
+
+/* ── Crosshair ── */
+#crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 30px;
+  height: 30px;
+}
+
+#crosshair::before,
+#crosshair::after {
+  content: '';
+  position: absolute;
+  background: rgba(0, 207, 255, 0.6);
+}
+
+#crosshair::before {
+  width: 2px;
+  height: 100%;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+}
+
+#crosshair::after {
+  height: 2px;
+  width: 100%;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+}
+
+/* ── Corner UI ── */
+#controls-hint {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  color: rgba(0, 207, 255, 0.5);
+  font-size: 11px;
+  line-height: 1.8;
+  text-align: right;
+  letter-spacing: 1px;
+}
+
+#controls-hint span {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+#title-badge {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  color: #00cfff;
+  text-shadow: 0 0 10px #00cfff;
+  font-size: 20px;
+  font-weight: bold;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+#title-badge sub {
+  font-size: 9px;
+  letter-spacing: 6px;
+  display: block;
+  opacity: 0.6;
+  margin-top: 2px;
+}
+
+/* ── Loading screen ── */
+#loading-screen {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  transition: opacity 0.8s;
+}
+
+#loading-screen.fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#loading-title {
+  color: #00cfff;
+  font-size: 42px;
+  font-weight: bold;
+  letter-spacing: 8px;
+  text-shadow: 0 0 20px #00cfff, 0 0 40px #007fff;
+  margin-bottom: 8px;
+}
+
+#loading-subtitle {
+  color: rgba(0, 207, 255, 0.5);
+  font-size: 12px;
+  letter-spacing: 6px;
+  margin-bottom: 50px;
+}
+
+#loading-bar-track {
+  width: 300px;
+  height: 2px;
+  background: rgba(0, 207, 255, 0.15);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+#loading-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #007fff, #00cfff);
+  box-shadow: 0 0 8px #00cfff;
+  transition: width 0.3s ease;
+}
+
+#loading-status {
+  margin-top: 16px;
+  color: rgba(0, 207, 255, 0.4);
+  font-size: 10px;
+  letter-spacing: 3px;
+}
+
+/* ── Float / Fly toggle button ── */
+#float-btn {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 10, 30, 0.7);
+  border: 1px solid rgba(0, 207, 255, 0.5);
+  color: #00cfff;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  padding: 8px 24px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s;
+  pointer-events: all;
+  border-radius: 2px;
+}
+
+#float-btn:hover {
+  background: rgba(0, 207, 255, 0.15);
+  box-shadow: 0 0 12px rgba(0, 207, 255, 0.4);
+}
+
+#float-btn.hover-mode {
+  border-color: rgba(180, 120, 255, 0.7);
+  color: #cc88ff;
+  box-shadow: 0 0 14px rgba(180, 100, 255, 0.4);
+}

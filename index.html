@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Thunderclap – 3D Flight Simulator</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Loading Screen -->
+  <div id="loading-screen">
+    <div id="loading-title">THUNDERCLAP</div>
+    <div id="loading-subtitle">FLIGHT SIMULATOR</div>
+    <div id="loading-bar-track">
+      <div id="loading-bar-fill"></div>
+    </div>
+    <div id="loading-status">INITIALIZING...</div>
+  </div>
+
+  <!-- HUD overlay -->
+  <div id="hud">
+    <div id="title-badge">
+      Thunderclap
+      <sub>Flight Simulator</sub>
+    </div>
+
+    <div id="crosshair"></div>
+
+    <div id="boost-indicator">&#9889; BOOST ACTIVE &#9889;</div>
+
+    <!-- Float / Fly toggle button -->
+    <button id="float-btn" class="fly-mode">&#9654; FLY</button>
+
+    <div id="controls-hint">
+      <span>↑↓</span> Pitch &nbsp;&nbsp; <span>←→</span> Yaw<br>
+      <span>SPACE</span> Boost<br>
+      <span>F</span> Hold — Lightning<br>
+      <span>V</span> Toggle Hover
+    </div>
+  </div>
+
+  <!-- Three.js render target -->
+  <div id="canvas-container"></div>
+
+  <!-- Three.js via CDN (ES module importmap) -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+    }
+  }
+  </script>
+
+  <script type="module" src="game.js"></script>
+
+</body>
+</html>
