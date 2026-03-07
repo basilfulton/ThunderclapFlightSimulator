@@ -70,64 +70,157 @@ scene.add(fill);
 setLoadProgress(15, 'LAYING GROUND...');
 
 (function buildGround() {
-  const S      = 2048;
-  const BLOCKS = 6;
-  const BK     = S / BLOCKS;
-  const ROAD   = BK * 0.24;
-  const SIDEW  = BK * 0.055;
-
+  const S   = 2048;
   const cvs = document.createElement('canvas');
   cvs.width = cvs.height = S;
   const ctx = cvs.getContext('2d');
 
-  ctx.fillStyle = '#5f6672';
+  // Dark asphalt base
+  ctx.fillStyle = '#2e3138';
   ctx.fillRect(0, 0, S, S);
 
-  for (let bx = 0; bx < BLOCKS; bx++) {
-    for (let bz = 0; bz < BLOCKS; bz++) {
-      const x1 = bx * BK + ROAD / 2;
-      const z1 = bz * BK + ROAD / 2;
-      const w  = BK - ROAD;
-      const h  = BK - ROAD;
+  // ── Warped grid of intersection points (6×6 → 5×5 city blocks) ──
+  const COLS = 6, ROWS = 6;
+  const CW = S / (COLS - 1), CH = S / (ROWS - 1);
+  const pts = [];
+  for (let r = 0; r < ROWS; r++) {
+    pts[r] = [];
+    for (let c = 0; c < COLS; c++) {
+      const edge = r === 0 || r === ROWS - 1 || c === 0 || c === COLS - 1;
+      pts[r][c] = {
+        x: c * CW + (edge ? 0 : (Math.random() - 0.5) * CW * 0.42),
+        y: r * CH + (edge ? 0 : (Math.random() - 0.5) * CH * 0.42),
+      };
+    }
+  }
 
-      ctx.fillStyle = '#c8cacf';
-      ctx.fillRect(x1, z1, w, h);
+  // ── Pre-compute bezier control points for winding roads ──
+  const hCP = [], vCP = [];
+  for (let r = 0; r < ROWS; r++) {
+    hCP[r] = [];
+    for (let c = 0; c < COLS - 1; c++) {
+      hCP[r][c] = {
+        x: (pts[r][c].x + pts[r][c+1].x) / 2 + (Math.random() - 0.5) * 44,
+        y: (pts[r][c].y + pts[r][c+1].y) / 2 + (Math.random() - 0.5) * 44,
+      };
+    }
+  }
+  for (let r = 0; r < ROWS - 1; r++) {
+    vCP[r] = [];
+    for (let c = 0; c < COLS; c++) {
+      vCP[r][c] = {
+        x: (pts[r][c].x + pts[r+1][c].x) / 2 + (Math.random() - 0.5) * 44,
+        y: (pts[r][c].y + pts[r+1][c].y) / 2 + (Math.random() - 0.5) * 44,
+      };
+    }
+  }
 
-      ctx.fillStyle = '#4e8035';
-      ctx.fillRect(x1 + SIDEW, z1 + SIDEW, w - SIDEW * 2, h - SIDEW * 2);
+  // ── Draw roads as wide bezier strokes ──
+  ctx.strokeStyle = '#2e3138';
+  ctx.lineWidth   = 30;
+  ctx.lineCap     = 'round';
+  ctx.lineJoin    = 'round';
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS - 1; c++) {
+      ctx.beginPath();
+      ctx.moveTo(pts[r][c].x, pts[r][c].y);
+      ctx.quadraticCurveTo(hCP[r][c].x, hCP[r][c].y, pts[r][c+1].x, pts[r][c+1].y);
+      ctx.stroke();
+    }
+  }
+  for (let r = 0; r < ROWS - 1; r++) {
+    for (let c = 0; c < COLS; c++) {
+      ctx.beginPath();
+      ctx.moveTo(pts[r][c].x, pts[r][c].y);
+      ctx.quadraticCurveTo(vCP[r][c].x, vCP[r][c].y, pts[r+1][c].x, pts[r+1][c].y);
+      ctx.stroke();
+    }
+  }
 
-      ctx.fillStyle = 'rgba(30,70,10,0.18)';
-      for (let p = 0; p < 18; p++) {
-        const px = x1 + SIDEW + Math.random() * (w - SIDEW * 2);
-        const pz = z1 + SIDEW + Math.random() * (h - SIDEW * 2);
-        ctx.fillRect(px, pz, 6 + Math.random() * 12, 3 + Math.random() * 6);
+  // ── Fill city blocks: sidewalk + organic grass ──
+  const GREENS = ['#1f4a12', '#254f14', '#163309', '#2a5c18', '#1c420f'];
+  for (let r = 0; r < ROWS - 1; r++) {
+    for (let c = 0; c < COLS - 1; c++) {
+      const tl = pts[r][c], tr = pts[r][c+1], bl = pts[r+1][c], br = pts[r+1][c+1];
+      const mcx = (tl.x + tr.x + bl.x + br.x) / 4;
+      const mcy = (tl.y + tr.y + bl.y + br.y) / 4;
+      const inset = (p, f) => ({ x: p.x + (mcx - p.x) * f, y: p.y + (mcy - p.y) * f });
+
+      // Sidewalk polygon
+      const [stl, str, sbl, sbr] = [tl, tr, bl, br].map(p => inset(p, 0.09));
+      ctx.fillStyle = '#6b6e75';
+      ctx.beginPath();
+      ctx.moveTo(stl.x, stl.y); ctx.lineTo(str.x, str.y);
+      ctx.lineTo(sbr.x, sbr.y); ctx.lineTo(sbl.x, sbl.y);
+      ctx.closePath(); ctx.fill();
+
+      // Grass base
+      const [gtl, gtr, gbl, gbr] = [tl, tr, bl, br].map(p => inset(p, 0.17));
+      ctx.fillStyle = '#1a3a0e';
+      ctx.beginPath();
+      ctx.moveTo(gtl.x, gtl.y); ctx.lineTo(gtr.x, gtr.y);
+      ctx.lineTo(gbr.x, gbr.y); ctx.lineTo(gbl.x, gbl.y);
+      ctx.closePath(); ctx.fill();
+
+      // Clip to grass quad for random patches
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(gtl.x, gtl.y); ctx.lineTo(gtr.x, gtr.y);
+      ctx.lineTo(gbr.x, gbr.y); ctx.lineTo(gbl.x, gbl.y);
+      ctx.closePath(); ctx.clip();
+
+      for (let p = 0; p < 65; p++) {
+        const u = Math.random(), v = Math.random();
+        const tx = gtl.x*(1-u)*(1-v) + gtr.x*u*(1-v) + gbl.x*(1-u)*v + gbr.x*u*v;
+        const ty = gtl.y*(1-u)*(1-v) + gtr.y*u*(1-v) + gbl.y*(1-u)*v + gbr.y*u*v;
+        const pw = 8 + Math.random() * 45, ph = 5 + Math.random() * 25;
+        ctx.save();
+        ctx.translate(tx, ty); ctx.rotate(Math.random() * Math.PI);
+        ctx.fillStyle = GREENS[Math.floor(Math.random() * GREENS.length)];
+        ctx.globalAlpha = 0.6 + Math.random() * 0.4;
+        ctx.fillRect(-pw/2, -ph/2, pw, ph);
+        ctx.restore();
       }
+      ctx.globalAlpha = 1.0;
+
+      for (let p = 0; p < 7; p++) {
+        const u = Math.random(), v = Math.random();
+        const tx = gtl.x*(1-u)*(1-v) + gtr.x*u*(1-v) + gbl.x*(1-u)*v + gbr.x*u*v;
+        const ty = gtl.y*(1-u)*(1-v) + gtr.y*u*(1-v) + gbl.y*(1-u)*v + gbr.y*u*v;
+        ctx.fillStyle = 'rgba(60,40,20,0.35)';
+        ctx.beginPath();
+        ctx.ellipse(tx, ty, 6 + Math.random()*15, 4 + Math.random()*11, Math.random()*Math.PI, 0, Math.PI*2);
+        ctx.fill();
+      }
+      ctx.restore();
     }
   }
 
-  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-  ctx.lineWidth   = 2.5;
-  for (let i = 0; i <= BLOCKS; i++) {
-    const p = i * BK;
-    for (const off of [-(ROAD / 2 - 3), (ROAD / 2 - 3)]) {
-      ctx.beginPath(); ctx.moveTo(p + off, 0); ctx.lineTo(p + off, S); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0, p + off); ctx.lineTo(S, p + off); ctx.stroke();
+  // ── Lane markings following the bezier curves ──
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+  ctx.lineWidth   = 1.8;
+  ctx.setLineDash([16, 13]);
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS - 1; c++) {
+      ctx.beginPath();
+      ctx.moveTo(pts[r][c].x, pts[r][c].y);
+      ctx.quadraticCurveTo(hCP[r][c].x, hCP[r][c].y, pts[r][c+1].x, pts[r][c+1].y);
+      ctx.stroke();
     }
   }
-
-  ctx.strokeStyle = 'rgba(255,210,0,0.75)';
-  ctx.lineWidth   = 2.5;
-  ctx.setLineDash([BK * 0.1, BK * 0.07]);
-  for (let i = 0; i <= BLOCKS; i++) {
-    const p = i * BK;
-    ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, S); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(S, p); ctx.stroke();
+  for (let r = 0; r < ROWS - 1; r++) {
+    for (let c = 0; c < COLS; c++) {
+      ctx.beginPath();
+      ctx.moveTo(pts[r][c].x, pts[r][c].y);
+      ctx.quadraticCurveTo(vCP[r][c].x, vCP[r][c].y, pts[r+1][c].x, pts[r+1][c].y);
+      ctx.stroke();
+    }
   }
   ctx.setLineDash([]);
 
   const tex = new THREE.CanvasTexture(cvs);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(36, 36);
+  tex.repeat.set(4, 4);
 
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(6000, 6000),
@@ -157,6 +250,34 @@ const ASSETS_PATH = 'assets/city/';
 const gltfLoader     = new GLTFLoader();
 const buildingGLBs   = [];
 const treesGLBs      = [];
+
+// ── Recolor building textures: white→gray, green→dark gray ──
+const processedTextures = new Set();
+function recolorTexture(tex) {
+  if (!tex || !tex.image || processedTextures.has(tex.uuid)) return;
+  processedTextures.add(tex.uuid);
+  const img = tex.image;
+  const cvs = document.createElement('canvas');
+  cvs.width  = img.width  || img.naturalWidth  || 512;
+  cvs.height = img.height || img.naturalHeight || 512;
+  const ctx  = cvs.getContext('2d');
+  ctx.drawImage(img, 0, 0, cvs.width, cvs.height);
+  const id   = ctx.getImageData(0, 0, cvs.width, cvs.height);
+  const d    = id.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i], g = d[i+1], b = d[i+2];
+    if (r > 180 && g > 180 && b > 180) {
+      // white-ish → gray
+      d[i] = d[i+1] = d[i+2] = 130;
+    } else if (g > r + 25 && g > b + 20 && g > 80) {
+      // green-ish → dark gray
+      d[i] = d[i+1] = d[i+2] = 65;
+    }
+  }
+  ctx.putImageData(id, 0, 0);
+  tex.image = cvs;
+  tex.needsUpdate = true;
+}
 const buildingMeshes = [];
 const buildingData   = []; // { cx, cz, xzRadius, maxY, meshes } per building
 
@@ -181,6 +302,7 @@ const buildingPromises = BUILDING_FILES.map(name =>
             child.receiveShadow = false;
             if (child.material) {
               const old = child.material;
+              if (old.map) recolorTexture(old.map);
               child.material = new THREE.MeshLambertMaterial({
                 map:         old.map         || null,
                 color:       old.color       || new THREE.Color(1, 1, 1),
