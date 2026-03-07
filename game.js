@@ -349,6 +349,13 @@ const hero = new THREE.Group();
 scene.add(hero);
 hero.position.set(0, 100, 0);
 
+// ─────────────────────────────────────────────
+//  INFERNO GROUP
+// ─────────────────────────────────────────────
+const inferno = new THREE.Group();
+scene.add(inferno);
+inferno.position.set(300, 150, -400);
+
 let flyModel   = null;  // Thunderclap (1).glb  — shown while flying
 let floatModel = null;  // Thunderclap2.glb     — shown while hovering
 
@@ -466,6 +473,42 @@ function buildPlaceholderHero() {
   return group;
 }
 
+function buildInfernoModel() {
+  const group    = new THREE.Group();
+  const bodyMat  = new THREE.MeshLambertMaterial({ color: 0xaa1111 });
+  const accentMat= new THREE.MeshLambertMaterial({ color: 0xff6600, emissive: 0x992200 });
+
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.0, 2.4), bodyMat);
+  group.add(torso);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.65, 16, 12), bodyMat);
+  head.position.set(0, 0.2, -1.9);
+  group.add(head);
+
+  [-1.9, 1.9].forEach(x => {
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.45, 0.45), bodyMat);
+    arm.position.set(x, 0, 0);
+    group.add(arm);
+  });
+
+  [-0.45, 0.45].forEach(x => {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 1.8), bodyMat);
+    leg.position.set(x, 0, 2.0);
+    group.add(leg);
+  });
+
+  const flame = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.12, 1.0), accentMat);
+  flame.position.set(0.2, -0.52, 0);
+  group.add(flame);
+
+  inferno.add(group);
+  return group;
+}
+buildInfernoModel();
+
+const infernoFireGlow = new THREE.PointLight(0xff4400, 3, 40);
+inferno.add(infernoFireGlow);
+
 // ─────────────────────────────────────────────
 //  ELECTRICITY TRAIL  (3 layered lines for thickness + glow)
 // ─────────────────────────────────────────────
@@ -501,6 +544,33 @@ const heroElectricGlow = new THREE.PointLight(0x55ccff, 4, 40);
 hero.add(heroElectricGlow);
 
 let trailTick = 0; // counts frames, used to control jitter frequency
+
+// ─────────────────────────────────────────────
+//  FIRE TRAIL  (Inferno — orange / red glow)
+// ─────────────────────────────────────────────
+const FIRE_TRAIL_LEN     = 80;
+const FIRE_TRAIL_CONFIGS = [
+  [0xffffff, 1.0],   // white core
+  [0xff8822, 0.85],  // orange mid
+  [0xff2200, 0.65],  // red outer
+];
+
+const fireTrailBufs = FIRE_TRAIL_CONFIGS.map(() => {
+  const buf = new Float32Array(FIRE_TRAIL_LEN * 3);
+  for (let i = 0; i < FIRE_TRAIL_LEN; i++) { buf[i*3] = 300; buf[i*3+1] = 150; buf[i*3+2] = -400; }
+  return buf;
+});
+
+const fireTrailLines = FIRE_TRAIL_CONFIGS.map(([color, opacity], idx) => {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(fireTrailBufs[idx], 3));
+  geo.setDrawRange(0, FIRE_TRAIL_LEN);
+  const mat  = new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+  const line = new THREE.Line(geo, mat);
+  line.frustumCulled = false;
+  scene.add(line);
+  return { line, geo };
+});
 
 // ─────────────────────────────────────────────
 //  CITY PLACEMENT
@@ -572,6 +642,37 @@ function buildCity() {
 }
 
 // ─────────────────────────────────────────────
+//  COMBAT STATE
+// ─────────────────────────────────────────────
+const HERO_MAX_HEALTH       = 100;
+const INFERNO_MAX_HEALTH    = 100;
+const INFERNO_AI_SPEED      = 38;
+const INFERNO_CHASE_RANGE   = 350;
+const INFERNO_ATTACK_RANGE  = 130;
+const INFERNO_FIRE_COOLDOWN = 1.4;  // seconds between shots
+const INFERNO_FIRE_DAMAGE   = 12;   // damage per firebolt hit
+const LIGHTNING_DAMAGE      = 18;   // damage per lightning hit
+
+let heroHealth    = HERO_MAX_HEALTH;
+let infernoHealth = INFERNO_MAX_HEALTH;
+
+let infernoState         = 'patrol';  // 'patrol' | 'chase' | 'attack' | 'defeated'
+const infernoWaypoint    = new THREE.Vector3(300, 150, -400);
+let   infernoWaypointTimer  = 0;
+let   infernoAIYaw          = 0;
+let   infernoAIPitch        = 0;
+let   infernoFireCooldown   = 0;
+let   infernoBoltGroup      = null;
+let   infernoBoltTimer      = 0;
+let   infernoDefeatedTimer  = 0;
+let   infernoDefeatedVelY   = 0;
+let   infernoRespawning     = false;
+
+const heroHealthFill    = document.getElementById('hero-health-fill');
+const infernoHealthFill = document.getElementById('inferno-health-fill');
+const combatMessage     = document.getElementById('combat-message');
+
+// ─────────────────────────────────────────────
 //  INPUT
 // ─────────────────────────────────────────────
 const keys = {};
@@ -586,9 +687,14 @@ window.addEventListener('keyup', e => { keys[e.code] = false; });
 //  FLOAT MODE
 // ─────────────────────────────────────────────
 let isFloating   = false;
+let staminaDepleted = false;          // true while forced into hover due to empty stamina
+let wasFloatingBeforeDepletion = false; // remember pre-depletion hover state
 const floatBtn   = document.getElementById('float-btn');
 
 function toggleFloat() {
+  // Block leaving hover while stamina is depleted
+  if (staminaDepleted && isFloating) return;
+
   isFloating = !isFloating;
 
   if (flyModel)   flyModel.visible   = !isFloating;
@@ -616,8 +722,7 @@ const CAM_LERP   = 0.06;
 let pitchAngle = 0;
 let yawAngle   = 0;
 
-// Camera sits low and behind, looking up at hero
-const cameraOffset = new THREE.Vector3(0, 2, 20);
+
 const camCurrentPos  = new THREE.Vector3();
 const camCurrentLook = new THREE.Vector3();
 
@@ -633,6 +738,17 @@ const _yawQ      = new THREE.Quaternion();
 const _rollQ     = new THREE.Quaternion();
 
 const boostIndicator = document.getElementById('boost-indicator');
+
+// ─────────────────────────────────────────────
+//  STAMINA
+// ─────────────────────────────────────────────
+const STAMINA_DRAIN       = 0.18;  // per second while boosting
+const STAMINA_REGEN       = 0.12;  // per second while flying normally
+const STAMINA_HOVER_REGEN = 0.45;  // per second while hovering
+
+let stamina = 1.0;
+
+const staminaFill = document.getElementById('stamina-fill');
 
 // ─────────────────────────────────────────────
 //  LIGHTNING  (continuous stream while F held)
@@ -703,6 +819,12 @@ function fireLightning() {
   boltTimer = BOLT_DURATION;
   scene.add(boltGroup);
 
+  // Check if bolt hits Inferno
+  if (infernoState !== 'defeated' && infernoHealth > 0 &&
+      distToSegment(origin, endPoint, inferno.position) < 9) {
+    takeDamage('inferno', LIGHTNING_DAMAGE);
+  }
+
   const impact = new THREE.PointLight(0x88ddff, 60, 150);
   impact.position.copy(endPoint);
   scene.add(impact);
@@ -733,6 +855,209 @@ function buildJaggedLine(from, to, segments, maxOffset) {
   }
   pts.push(to.clone());
   return pts;
+}
+
+// ─────────────────────────────────────────────
+//  INFERNO COMBAT FUNCTIONS
+// ─────────────────────────────────────────────
+
+// Returns shortest distance from point p to line segment a→b
+function distToSegment(a, b, p) {
+  const ab   = new THREE.Vector3().subVectors(b, a);
+  const len2 = ab.lengthSq();
+  if (len2 === 0) return a.distanceTo(p);
+  const t = Math.max(0, Math.min(1, new THREE.Vector3().subVectors(p, a).dot(ab) / len2));
+  return new THREE.Vector3().copy(a).addScaledVector(ab, t).distanceTo(p);
+}
+
+function showCombatMessage(text, color, ms = 0) {
+  combatMessage.textContent = text;
+  combatMessage.style.color = color;
+  combatMessage.style.textShadow = `0 0 20px ${color}, 0 0 40px ${color}`;
+  combatMessage.classList.add('visible');
+  if (ms > 0) setTimeout(hideCombatMessage, ms);
+}
+
+function hideCombatMessage() {
+  combatMessage.classList.remove('visible');
+}
+
+function takeDamage(target, amount) {
+  if (target === 'hero') {
+    if (heroHealth <= 0) return;
+    heroHealth = Math.max(0, heroHealth - amount);
+    heroHealthFill.style.width = (heroHealth / HERO_MAX_HEALTH * 100) + '%';
+    if (heroHealth <= 0) {
+      showCombatMessage('THUNDERCLAP IS DOWN!', '#ff3300', 3000);
+      setTimeout(() => {
+        heroHealth = HERO_MAX_HEALTH;
+        heroHealthFill.style.width = '100%';
+      }, 3000);
+    }
+  } else {
+    if (infernoHealth <= 0 || infernoState === 'defeated') return;
+    infernoHealth = Math.max(0, infernoHealth - amount);
+    infernoHealthFill.style.width = (infernoHealth / INFERNO_MAX_HEALTH * 100) + '%';
+    if (infernoHealth <= 0) {
+      infernoState        = 'defeated';
+      infernoDefeatedTimer = 4.0;
+      infernoDefeatedVelY  = 10;
+      showCombatMessage('INFERNO DEFEATED!', '#00cfff', 4000);
+    }
+  }
+}
+
+// Fire bolt layers: yellow core → orange → red → dark red
+const FIRE_BOLT_LAYERS = [
+  [0xffff88, 0.4],
+  [0xff8800, 1.0],
+  [0xff3300, 1.8],
+  [0xaa1100, 2.6],
+];
+
+function fireFirebolt() {
+  const toHero = new THREE.Vector3().subVectors(hero.position, inferno.position);
+  const dist   = toHero.length();
+  toHero.normalize();
+
+  // Small spread so Inferno doesn't always hit
+  toHero.x += (Math.random() - 0.5) * 0.18;
+  toHero.y += (Math.random() - 0.5) * 0.14;
+  toHero.normalize();
+
+  const handOffset = new THREE.Vector3(0.9, -0.3, -1.5).applyQuaternion(inferno.quaternion);
+  const origin     = inferno.position.clone().add(handOffset);
+  const endPoint   = origin.clone().addScaledVector(toHero, Math.min(dist + 30, 400));
+
+  // Hit check — did the bolt pass within 9 units of the hero?
+  if (distToSegment(origin, endPoint, hero.position) < 9) {
+    takeDamage('hero', INFERNO_FIRE_DAMAGE);
+  }
+
+  if (infernoBoltGroup) { scene.remove(infernoBoltGroup); infernoBoltGroup = null; }
+  infernoBoltGroup = new THREE.Group();
+  for (const [color, jitter] of FIRE_BOLT_LAYERS) {
+    const pts  = buildJaggedLine(origin, endPoint, 22, 5.5 * jitter);
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 })
+    );
+    infernoBoltGroup.add(line);
+  }
+  infernoBoltTimer = 0.13;
+  scene.add(infernoBoltGroup);
+
+  const impact = new THREE.PointLight(0xff6600, 55, 140);
+  impact.position.copy(endPoint);
+  scene.add(impact);
+  setTimeout(() => scene.remove(impact), 130);
+
+  const muzzle = new THREE.PointLight(0xff8800, 70, 50);
+  muzzle.position.copy(origin);
+  scene.add(muzzle);
+  setTimeout(() => scene.remove(muzzle), 90);
+}
+
+function updateInfernoAI(dt, t) {
+  if (infernoState === 'defeated') {
+    infernoDefeatedTimer -= dt;
+    infernoDefeatedVelY  -= 90 * dt;
+    inferno.position.y   += infernoDefeatedVelY * dt;
+    inferno.rotation.z   += 3.0 * dt;
+    inferno.rotation.x   += 1.5 * dt;
+
+    if ((inferno.position.y < -80 || infernoDefeatedTimer <= 0) && !infernoRespawning) {
+      inferno.visible   = false;
+      infernoRespawning = true;
+      setTimeout(() => {
+        infernoHealth = INFERNO_MAX_HEALTH;
+        infernoHealthFill.style.width = '100%';
+        infernoState = 'patrol';
+        inferno.position.set(
+          hero.position.x + (Math.random() < 0.5 ? -1 : 1) * (250 + Math.random() * 200),
+          120 + Math.random() * 80,
+          hero.position.z + (Math.random() < 0.5 ? -1 : 1) * (250 + Math.random() * 200)
+        );
+        inferno.rotation.set(0, 0, 0);
+        inferno.visible      = true;
+        infernoDefeatedVelY  = 0;
+        infernoRespawning    = false;
+        showCombatMessage('INFERNO RETURNS!', '#ff4400', 2500);
+      }, 8000);
+    }
+    return;
+  }
+
+  const distToHero = inferno.position.distanceTo(hero.position);
+
+  // State machine transitions
+  if (distToHero < INFERNO_ATTACK_RANGE) {
+    infernoState = 'attack';
+  } else if (distToHero < INFERNO_CHASE_RANGE) {
+    infernoState = 'chase';
+  } else {
+    infernoState = 'patrol';
+  }
+
+  // Choose target position
+  let target;
+  if (infernoState === 'patrol') {
+    infernoWaypointTimer -= dt;
+    if (infernoWaypointTimer <= 0 || inferno.position.distanceTo(infernoWaypoint) < 40) {
+      const angle  = Math.random() * Math.PI * 2;
+      const radius = 200 + Math.random() * 320;
+      infernoWaypoint.set(
+        hero.position.x + Math.cos(angle) * radius,
+        75 + Math.random() * 140,
+        hero.position.z + Math.sin(angle) * radius
+      );
+      infernoWaypointTimer = 4 + Math.random() * 6;
+    }
+    target = infernoWaypoint;
+  } else if (infernoState === 'attack') {
+    // Orbit the hero at attack range
+    const orbitAngle = t * 0.5 + Math.PI;
+    target = new THREE.Vector3(
+      hero.position.x + Math.cos(orbitAngle) * INFERNO_ATTACK_RANGE * 0.85,
+      hero.position.y + 15,
+      hero.position.z + Math.sin(orbitAngle) * INFERNO_ATTACK_RANGE * 0.85
+    );
+  } else {
+    target = hero.position;
+  }
+
+  // Steer toward target
+  const toTarget  = new THREE.Vector3().subVectors(target, inferno.position);
+  const flatDist  = Math.sqrt(toTarget.x * toTarget.x + toTarget.z * toTarget.z);
+  const targetYaw   = Math.atan2(-toTarget.x, -toTarget.z);
+  const targetPitch = Math.atan2(toTarget.y, flatDist + 0.001);
+
+  let dyaw = targetYaw - infernoAIYaw;
+  while (dyaw >  Math.PI) dyaw -= Math.PI * 2;
+  while (dyaw < -Math.PI) dyaw += Math.PI * 2;
+  infernoAIYaw   += dyaw * Math.min(1, 2.5 * dt);
+  infernoAIPitch += (targetPitch - infernoAIPitch) * Math.min(1, 2.5 * dt);
+  infernoAIPitch  = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, infernoAIPitch));
+
+  const iPitch = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), infernoAIPitch);
+  const iYaw   = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), infernoAIYaw);
+  inferno.quaternion.copy(iYaw).multiply(iPitch);
+
+  // Move
+  const infernoSpeed = infernoState === 'attack' ? INFERNO_AI_SPEED * 0.35 : INFERNO_AI_SPEED;
+  const ifwd = new THREE.Vector3(0, 0, -1).applyQuaternion(inferno.quaternion);
+  inferno.position.addScaledVector(ifwd, infernoSpeed * dt);
+  inferno.position.y = Math.max(15, inferno.position.y);
+
+  // Pulse fire glow
+  infernoFireGlow.intensity = 3 + Math.sin(t * 9) * 1.8;
+
+  // Fire on cooldown while attacking
+  infernoFireCooldown -= dt;
+  if (infernoState === 'attack' && infernoFireCooldown <= 0) {
+    fireFirebolt();
+    infernoFireCooldown = INFERNO_FIRE_COOLDOWN;
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -770,9 +1095,38 @@ function animate() {
 
   const t = clock.elapsedTime;
 
+  // ── Stamina ──
+  const wantBoost = !!keys['Space'] && !isFloating;
+  const boosting  = wantBoost && stamina > 0;
+
+  const firingLightning = !!keys['KeyF'] && stamina > 0 && !staminaDepleted;
+
+  if (boosting || firingLightning) {
+    stamina = Math.max(0, stamina - STAMINA_DRAIN * dt);
+  } else if (isFloating) {
+    stamina = Math.min(1, stamina + STAMINA_HOVER_REGEN * dt);
+  } else {
+    stamina = Math.min(1, stamina + STAMINA_REGEN * dt);
+  }
+
+  staminaFill.style.width = (stamina * 100) + '%';
+  staminaFill.classList.toggle('depleted', staminaDepleted);
+
+  // Force hover when stamina hits 0
+  if (stamina === 0 && !staminaDepleted) {
+    staminaDepleted = true;
+    wasFloatingBeforeDepletion = isFloating;
+    if (!isFloating) toggleFloat();
+  }
+
+  // Release forced hover only when stamina is completely full
+  if (staminaDepleted && stamina >= 1.0) {
+    staminaDepleted = false;
+    if (!wasFloatingBeforeDepletion && isFloating) toggleFloat();
+  }
+
   // ── Input / flight ──
-  const boosting = !!keys['Space'] && !isFloating;
-  const speed    = isFloating ? 0 : BASE_SPEED * (boosting ? BOOST_MULT : 1.0);
+  const speed = isFloating ? 0 : BASE_SPEED * (boosting ? BOOST_MULT : 1.0);
 
   if (keys['ArrowUp'])    pitchAngle = Math.min(pitchAngle + PITCH_RATE * dt,  MAX_PITCH);
   if (keys['ArrowDown'])  pitchAngle = Math.max(pitchAngle - PITCH_RATE * dt, -MAX_PITCH);
@@ -804,10 +1158,11 @@ function animate() {
     if (!heroHitsBuilding(_vertOnly)) hero.position.y = _tentative.y;
   }
 
-  // ── Camera (higher, slight look-down on hero) ──
-  // Lift camera extra when pitching steeply upward so hero stays on screen
-  _desiredP.copy(cameraOffset).applyQuaternion(_yawQ).add(hero.position);
-  _desiredP.y += Math.max(0, pitchAngle) * 22;
+  // ── Camera: shifts above hero when diving, below when climbing ──
+  // pitchAngle > 0 = nose up (climbing)  → camera drops below → view from below
+  // pitchAngle < 0 = nose down (diving)  → camera rises above → view from above
+  const pitchCamY = 2 - pitchAngle * 12;
+  _desiredP.set(0, pitchCamY, 20).applyQuaternion(_yawQ).add(hero.position);
   _desiredL.copy(hero.position).add(new THREE.Vector3(0, 3, 0));
   camCurrentPos.lerp(_desiredP,  CAM_LERP);
   camCurrentLook.lerp(_desiredL, CAM_LERP);
@@ -830,6 +1185,7 @@ function animate() {
     buf[1] = hero.position.y + (Math.random() - 0.5) * jitter;
     buf[2] = hero.position.z + (Math.random() - 0.5) * jitter;
     trailLines[ti].geo.attributes.position.needsUpdate = true;
+    trailLines[ti].line.visible = boosting;
     trailLines[ti].line.material.opacity = TRAIL_CONFIGS[ti][1];
   }
 
@@ -838,7 +1194,7 @@ function animate() {
 
   // ── Lightning (continuous while F held, fires every BOLT_COOLDOWN seconds) ──
   lightningCooldown -= dt;
-  if (keys['KeyF'] && lightningCooldown <= 0) {
+  if (firingLightning && lightningCooldown <= 0) {
     fireLightning();
     lightningCooldown = BOLT_COOLDOWN;
   }
@@ -846,6 +1202,32 @@ function animate() {
   if (boltGroup) {
     boltTimer -= dt;
     if (boltTimer <= 0) { scene.remove(boltGroup); boltGroup = null; }
+  }
+
+  // ── Inferno AI ──
+  updateInfernoAI(dt, t);
+
+  // ── Inferno fire trail ──
+  const fireTrailSpreads = [0.3, 1.0, 1.8];
+  for (let ti = 0; ti < fireTrailBufs.length; ti++) {
+    const fbuf    = fireTrailBufs[ti];
+    const fspread = fireTrailSpreads[ti];
+    for (let i = FIRE_TRAIL_LEN - 1; i > 0; i--) {
+      fbuf[i * 3]     = fbuf[(i - 1) * 3];
+      fbuf[i * 3 + 1] = fbuf[(i - 1) * 3 + 1];
+      fbuf[i * 3 + 2] = fbuf[(i - 1) * 3 + 2];
+    }
+    fbuf[0] = inferno.position.x + (Math.random() - 0.5) * fspread * 1.2;
+    fbuf[1] = inferno.position.y + (Math.random() - 0.5) * fspread * 1.2;
+    fbuf[2] = inferno.position.z + (Math.random() - 0.5) * fspread * 1.2;
+    fireTrailLines[ti].geo.attributes.position.needsUpdate = true;
+    fireTrailLines[ti].line.visible = inferno.visible && infernoState === 'chase';
+  }
+
+  // ── Inferno bolt timer ──
+  if (infernoBoltGroup) {
+    infernoBoltTimer -= dt;
+    if (infernoBoltTimer <= 0) { scene.remove(infernoBoltGroup); infernoBoltGroup = null; }
   }
 
   // ── HUD ──
