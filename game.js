@@ -281,7 +281,7 @@ function recolorTexture(tex) {
 const buildingMeshes = [];
 const buildingData   = []; // { cx, cz, xzRadius, maxY, meshes } per building
 
-let totalAssets  = BUILDING_FILES.length + TREE_FILES.length + 2; // +2 for fly + float hero
+let totalAssets  = BUILDING_FILES.length + TREE_FILES.length + 3; // +2 for fly + float hero, +1 for Inferno
 let loadedAssets = 0;
 
 function onAssetLoaded() {
@@ -381,7 +381,7 @@ function orientModelForFlight(model) {
 
 // ── Fly model (Thunderclap (1).glb) ──
 const heroFlyPromise = new Promise(resolve => {
-  gltfLoader.load('Thunderclap (1).glb',
+  gltfLoader.load('assets/Thunderclap (1).glb',
     gltf => {
       flyModel = gltf.scene;
       orientModelForFlight(flyModel);
@@ -403,7 +403,7 @@ const heroFlyPromise = new Promise(resolve => {
 
 // ── Float model (Thunderclap2.glb) ──
 const heroFloatPromise = new Promise(resolve => {
-  gltfLoader.load('Thunderclap2.glb',
+  gltfLoader.load('assets/Thunderclap2.glb',
     gltf => {
       floatModel = gltf.scene;
       // Float model stays upright — just scale and centre it
@@ -473,38 +473,48 @@ function buildPlaceholderHero() {
   return group;
 }
 
-function buildInfernoModel() {
-  const group    = new THREE.Group();
-  const bodyMat  = new THREE.MeshLambertMaterial({ color: 0xaa1111 });
-  const accentMat= new THREE.MeshLambertMaterial({ color: 0xff6600, emissive: 0x992200 });
-
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.0, 2.4), bodyMat);
-  group.add(torso);
-
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.65, 16, 12), bodyMat);
-  head.position.set(0, 0.2, -1.9);
-  group.add(head);
-
-  [-1.9, 1.9].forEach(x => {
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.45, 0.45), bodyMat);
-    arm.position.set(x, 0, 0);
-    group.add(arm);
-  });
-
-  [-0.45, 0.45].forEach(x => {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 1.8), bodyMat);
-    leg.position.set(x, 0, 2.0);
-    group.add(leg);
-  });
-
-  const flame = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.12, 1.0), accentMat);
-  flame.position.set(0.2, -0.52, 0);
-  group.add(flame);
-
-  inferno.add(group);
-  return group;
-}
-buildInfernoModel();
+let infernoModel = null;
+const infernoModelPromise = new Promise(resolve => {
+  gltfLoader.load('assets/Inferno.glb',
+    gltf => {
+      infernoModel = gltf.scene;
+      orientModelForFlight(infernoModel);
+      inferno.add(infernoModel);
+      onAssetLoaded();
+      resolve();
+    },
+    undefined,
+    err => {
+      console.warn('Inferno.glb failed, using placeholder:', err);
+      // Fallback procedural model
+      const group    = new THREE.Group();
+      const bodyMat  = new THREE.MeshLambertMaterial({ color: 0xaa1111 });
+      const accentMat= new THREE.MeshLambertMaterial({ color: 0xff6600, emissive: 0x992200 });
+      const torso = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.0, 2.4), bodyMat);
+      group.add(torso);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.65, 16, 12), bodyMat);
+      head.position.set(0, 0.2, -1.9);
+      group.add(head);
+      [-1.9, 1.9].forEach(x => {
+        const arm = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.45, 0.45), bodyMat);
+        arm.position.set(x, 0, 0);
+        group.add(arm);
+      });
+      [-0.45, 0.45].forEach(x => {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 1.8), bodyMat);
+        leg.position.set(x, 0, 2.0);
+        group.add(leg);
+      });
+      const flame = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.12, 1.0), accentMat);
+      flame.position.set(0.2, -0.52, 0);
+      group.add(flame);
+      infernoModel = group;
+      inferno.add(infernoModel);
+      onAssetLoaded();
+      resolve();
+    }
+  );
+});
 
 const infernoFireGlow = new THREE.PointLight(0xff4400, 3, 40);
 inferno.add(infernoFireGlow);
@@ -927,10 +937,16 @@ function fireFirebolt() {
 
   const handOffset = new THREE.Vector3(0.9, -0.3, -1.5).applyQuaternion(inferno.quaternion);
   const origin     = inferno.position.clone().add(handOffset);
-  const endPoint   = origin.clone().addScaledVector(toHero, Math.min(dist + 30, 400));
+  let endPoint     = origin.clone().addScaledVector(toHero, Math.min(dist + 30, 400));
+
+  // Clip bolt at buildings and block damage if a building is in the way
+  raycaster.set(origin, toHero);
+  const bHits   = raycaster.intersectObjects(buildingMeshes, false);
+  const blocked = bHits.length > 0 && bHits[0].distance < origin.distanceTo(endPoint);
+  if (blocked) endPoint = bHits[0].point.clone();
 
   // Hit check — did the bolt pass within 9 units of the hero?
-  if (distToSegment(origin, endPoint, hero.position) < 9) {
+  if (!blocked && distToSegment(origin, endPoint, hero.position) < 9) {
     takeDamage('hero', INFERNO_FIRE_DAMAGE);
   }
 
@@ -1046,8 +1062,13 @@ function updateInfernoAI(dt, t) {
   // Move
   const infernoSpeed = infernoState === 'attack' ? INFERNO_AI_SPEED * 0.35 : INFERNO_AI_SPEED;
   const ifwd = new THREE.Vector3(0, 0, -1).applyQuaternion(inferno.quaternion);
-  inferno.position.addScaledVector(ifwd, infernoSpeed * dt);
-  inferno.position.y = Math.max(15, inferno.position.y);
+  const infernoTentative = inferno.position.clone().addScaledVector(ifwd, infernoSpeed * dt);
+  infernoTentative.y = Math.max(15, infernoTentative.y);
+  if (!heroHitsBuilding(infernoTentative)) {
+    inferno.position.copy(infernoTentative);
+  } else {
+    inferno.position.y = Math.max(15, inferno.position.y);
+  }
 
   // Pulse fire glow
   infernoFireGlow.intensity = 3 + Math.sin(t * 9) * 1.8;
