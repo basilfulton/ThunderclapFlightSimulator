@@ -271,9 +271,20 @@ body {
 
 #inferno-health-hud {
   position: absolute;
-  top: 80px;
-  right: 20px;
-  text-align: right;
+  top: 120px;
+  left: 20px;
+}
+
+#icicle-health-hud {
+  position: absolute;
+  top: 160px;
+  left: 20px;
+}
+
+#foliage-health-hud {
+  position: absolute;
+  top: 200px;
+  left: 20px;
 }
 
 .health-label {
@@ -285,6 +296,14 @@ body {
 
 .inferno-label {
   color: rgba(255, 80, 20, 0.75);
+}
+
+.icicle-label {
+  color: rgba(180, 240, 255, 0.85);
+}
+
+.foliage-label {
+  color: rgba(80, 200, 60, 0.85);
 }
 
 .health-track {
@@ -311,6 +330,16 @@ body {
 .inferno-fill {
   background: linear-gradient(90deg, #cc1100, #ff6600);
   box-shadow: 0 0 8px #ff3300;
+}
+
+.icicle-fill {
+  background: linear-gradient(90deg, #aaeeff, #ffffff);
+  box-shadow: 0 0 8px #88ddff;
+}
+
+.foliage-fill {
+  background: linear-gradient(90deg, #1a6600, #66ff44);
+  box-shadow: 0 0 8px #44cc00;
 }
 
 /* ── Combat message ── */
