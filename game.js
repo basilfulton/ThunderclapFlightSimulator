@@ -381,7 +381,7 @@ function orientModelForFlight(model) {
   model.scale.setScalar(5 / maxDim);
 
   model.rotation.order = 'ZXY';
-  model.rotation.x = -Math.PI / 2 + 0.35; // nose-up tilt
+  model.rotation.x = -Math.PI / 2 - 0.1; // slight left tilt for level flight
   model.rotation.z = -Math.PI / 2;
 
   const box1   = new THREE.Box3().setFromObject(model);
