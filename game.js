@@ -454,12 +454,11 @@ const heroFloatPromise = new Promise(resolve => {
   );
 });
 
-function buildPlaceholderHero() {
-  const group    = new THREE.Group();
-  const bodyMat  = new THREE.MeshLambertMaterial({ color: 0x2255aa });
-  const accentMat= new THREE.MeshLambertMaterial({ color: 0x00cfff, emissive: 0x006688 });
+function buildPlaceholderModel(parent, bodyColor, accentColor, accentEmissive) {
+  const group     = new THREE.Group();
+  const bodyMat   = new THREE.MeshLambertMaterial({ color: bodyColor });
+  const accentMat = new THREE.MeshLambertMaterial({ color: accentColor, emissive: accentEmissive });
 
-  // Flying pose: body along -Z, head at front
   const torso = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.0, 2.4), bodyMat);
   group.add(torso);
 
@@ -479,12 +478,16 @@ function buildPlaceholderHero() {
     group.add(leg);
   });
 
-  const bolt = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.12, 1.0), accentMat);
-  bolt.position.set(0.2, -0.52, 0);
-  group.add(bolt);
+  const accent = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.12, 1.0), accentMat);
+  accent.position.set(0.2, -0.52, 0);
+  group.add(accent);
 
-  hero.add(group);
+  parent.add(group);
   return group;
+}
+
+function buildPlaceholderHero() {
+  return buildPlaceholderModel(hero, 0x2255aa, 0x00cfff, 0x006688);
 }
 
 let infernoModel = null;
@@ -500,30 +503,7 @@ const infernoModelPromise = new Promise(resolve => {
     undefined,
     err => {
       console.warn('Inferno.glb failed, using placeholder:', err);
-      // Fallback procedural model
-      const group    = new THREE.Group();
-      const bodyMat  = new THREE.MeshLambertMaterial({ color: 0xaa1111 });
-      const accentMat= new THREE.MeshLambertMaterial({ color: 0xff6600, emissive: 0x992200 });
-      const torso = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.0, 2.4), bodyMat);
-      group.add(torso);
-      const head = new THREE.Mesh(new THREE.SphereGeometry(0.65, 16, 12), bodyMat);
-      head.position.set(0, 0.2, -1.9);
-      group.add(head);
-      [-1.9, 1.9].forEach(x => {
-        const arm = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.45, 0.45), bodyMat);
-        arm.position.set(x, 0, 0);
-        group.add(arm);
-      });
-      [-0.45, 0.45].forEach(x => {
-        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 1.8), bodyMat);
-        leg.position.set(x, 0, 2.0);
-        group.add(leg);
-      });
-      const flame = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.12, 1.0), accentMat);
-      flame.position.set(0.2, -0.52, 0);
-      group.add(flame);
-      infernoModel = group;
-      inferno.add(infernoModel);
+      infernoModel = buildPlaceholderModel(inferno, 0xaa1111, 0xff6600, 0x992200);
       onAssetLoaded();
       resolve();
     }
@@ -546,29 +526,7 @@ const icicleModelPromise = new Promise(resolve => {
     undefined,
     err => {
       console.warn('Icicle.glb failed, using placeholder:', err);
-      const group    = new THREE.Group();
-      const bodyMat  = new THREE.MeshLambertMaterial({ color: 0x88ccee });
-      const accentMat= new THREE.MeshLambertMaterial({ color: 0xaaeeff, emissive: 0x224466 });
-      const torso = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.0, 2.4), bodyMat);
-      group.add(torso);
-      const head = new THREE.Mesh(new THREE.SphereGeometry(0.65, 16, 12), bodyMat);
-      head.position.set(0, 0.2, -1.9);
-      group.add(head);
-      [-1.9, 1.9].forEach(x => {
-        const arm = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.45, 0.45), bodyMat);
-        arm.position.set(x, 0, 0);
-        group.add(arm);
-      });
-      [-0.45, 0.45].forEach(x => {
-        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 1.8), bodyMat);
-        leg.position.set(x, 0, 2.0);
-        group.add(leg);
-      });
-      const shard = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.12, 1.0), accentMat);
-      shard.position.set(0.2, -0.52, 0);
-      group.add(shard);
-      icicleModel = group;
-      icicle.add(icicleModel);
+      icicleModel = buildPlaceholderModel(icicle, 0x88ccee, 0xaaeeff, 0x224466);
       onAssetLoaded();
       resolve();
     }
@@ -591,29 +549,7 @@ const foliageModelPromise = new Promise(resolve => {
     undefined,
     err => {
       console.warn('Foliage.glb failed, using placeholder:', err);
-      const group   = new THREE.Group();
-      const bodyMat = new THREE.MeshLambertMaterial({ color: 0x1a6600 });
-      const leafMat = new THREE.MeshLambertMaterial({ color: 0x44cc00, emissive: 0x113300 });
-      const torso = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.0, 2.4), bodyMat);
-      group.add(torso);
-      const head = new THREE.Mesh(new THREE.SphereGeometry(0.65, 16, 12), bodyMat);
-      head.position.set(0, 0.2, -1.9);
-      group.add(head);
-      [-1.9, 1.9].forEach(x => {
-        const arm = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.45, 0.45), bodyMat);
-        arm.position.set(x, 0, 0);
-        group.add(arm);
-      });
-      [-0.45, 0.45].forEach(x => {
-        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 1.8), bodyMat);
-        leg.position.set(x, 0, 2.0);
-        group.add(leg);
-      });
-      const leaf = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.12, 1.0), leafMat);
-      leaf.position.set(0.2, -0.52, 0);
-      group.add(leaf);
-      foliageModel = group;
-      foliage.add(foliageModel);
+      foliageModel = buildPlaceholderModel(foliage, 0x1a6600, 0x44cc00, 0x113300);
       onAssetLoaded();
       resolve();
     }
@@ -624,10 +560,28 @@ const foliageVineGlow = new THREE.PointLight(0x44cc00, 3, 40);
 foliage.add(foliageVineGlow);
 
 // ─────────────────────────────────────────────
-//  ELECTRICITY TRAIL  (3 layered lines for thickness + glow)
+//  TRAILS  (3 layered lines per entity for thickness + glow)
 // ─────────────────────────────────────────────
-const TRAIL_LEN  = 80;
-const NUM_TRAILS = 3;
+const TRAIL_LEN = 80;
+
+function makeTrail(configs, initX, initY, initZ) {
+  const bufs = configs.map(() => {
+    const buf = new Float32Array(TRAIL_LEN * 3);
+    for (let i = 0; i < TRAIL_LEN; i++) { buf[i*3] = initX; buf[i*3+1] = initY; buf[i*3+2] = initZ; }
+    return buf;
+  });
+  const lines = configs.map(([color, opacity], idx) => {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(bufs[idx], 3));
+    geo.setDrawRange(0, TRAIL_LEN);
+    const mat  = new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+    const line = new THREE.Line(geo, mat);
+    line.frustumCulled = false;
+    scene.add(line);
+    return { line, geo };
+  });
+  return { bufs, lines };
+}
 
 // Per-trail config: [color, opacity]
 const TRAIL_CONFIGS = [
@@ -636,22 +590,7 @@ const TRAIL_CONFIGS = [
   [0x2299ff, 0.65],  // blue outer
 ];
 
-const trailBufs  = TRAIL_CONFIGS.map(() => {
-  const buf = new Float32Array(TRAIL_LEN * 3);
-  for (let i = 0; i < TRAIL_LEN; i++) { buf[i*3] = 0; buf[i*3+1] = 100; buf[i*3+2] = 0; }
-  return buf;
-});
-
-const trailLines = TRAIL_CONFIGS.map(([color, opacity], idx) => {
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(trailBufs[idx], 3));
-  geo.setDrawRange(0, TRAIL_LEN);
-  const mat  = new THREE.LineBasicMaterial({ color, transparent: true, opacity });
-  const line = new THREE.Line(geo, mat);
-  line.frustumCulled = false;
-  scene.add(line);
-  return { line, geo };
-});
+const { bufs: trailBufs, lines: trailLines } = makeTrail(TRAIL_CONFIGS, 0, 100, 0);
 
 // Persistent electric glow that follows the hero
 const heroElectricGlow = new THREE.PointLight(0x55ccff, 4, 40);
@@ -659,86 +598,29 @@ hero.add(heroElectricGlow);
 
 let trailTick = 0; // counts frames, used to control jitter frequency
 
-// ─────────────────────────────────────────────
-//  FIRE TRAIL  (Inferno — orange / red glow)
-// ─────────────────────────────────────────────
-const FIRE_TRAIL_LEN     = 80;
+// FIRE TRAIL  (Inferno — orange / red glow)
 const FIRE_TRAIL_CONFIGS = [
   [0xffffff, 1.0],   // white core
   [0xff8822, 0.85],  // orange mid
   [0xff2200, 0.65],  // red outer
 ];
+const { bufs: fireTrailBufs, lines: fireTrailLines } = makeTrail(FIRE_TRAIL_CONFIGS, 300, 150, -400);
 
-const fireTrailBufs = FIRE_TRAIL_CONFIGS.map(() => {
-  const buf = new Float32Array(FIRE_TRAIL_LEN * 3);
-  for (let i = 0; i < FIRE_TRAIL_LEN; i++) { buf[i*3] = 300; buf[i*3+1] = 150; buf[i*3+2] = -400; }
-  return buf;
-});
-
-const fireTrailLines = FIRE_TRAIL_CONFIGS.map(([color, opacity], idx) => {
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(fireTrailBufs[idx], 3));
-  geo.setDrawRange(0, FIRE_TRAIL_LEN);
-  const mat  = new THREE.LineBasicMaterial({ color, transparent: true, opacity });
-  const line = new THREE.Line(geo, mat);
-  line.frustumCulled = false;
-  scene.add(line);
-  return { line, geo };
-});
-
-// ─────────────────────────────────────────────
-//  VINE TRAIL  (Foliage — dark / bright green)
-// ─────────────────────────────────────────────
-const VINE_TRAIL_LEN     = 80;
+// VINE TRAIL  (Foliage — dark / bright green)
 const VINE_TRAIL_CONFIGS = [
   [0x88ff44, 1.0],   // bright green core
   [0x2d9900, 0.85],  // mid green
   [0x0d5500, 0.65],  // dark green outer
 ];
+const { bufs: vineTrailBufs, lines: vineTrailLines } = makeTrail(VINE_TRAIL_CONFIGS, 0, 150, 500);
 
-const vineTrailBufs = VINE_TRAIL_CONFIGS.map(() => {
-  const buf = new Float32Array(VINE_TRAIL_LEN * 3);
-  for (let i = 0; i < VINE_TRAIL_LEN; i++) { buf[i*3] = 0; buf[i*3+1] = 150; buf[i*3+2] = 500; }
-  return buf;
-});
-
-const vineTrailLines = VINE_TRAIL_CONFIGS.map(([color, opacity], idx) => {
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(vineTrailBufs[idx], 3));
-  geo.setDrawRange(0, VINE_TRAIL_LEN);
-  const mat  = new THREE.LineBasicMaterial({ color, transparent: true, opacity });
-  const line = new THREE.Line(geo, mat);
-  line.frustumCulled = false;
-  scene.add(line);
-  return { line, geo };
-});
-
-// ─────────────────────────────────────────────
-//  ICE TRAIL  (Icicle — white / light-blue glow)
-// ─────────────────────────────────────────────
-const ICE_TRAIL_LEN     = 80;
+// ICE TRAIL  (Icicle — white / light-blue glow)
 const ICE_TRAIL_CONFIGS = [
   [0xffffff, 1.0],   // white core
   [0xaaeeff, 0.85],  // light blue mid
   [0x55ccff, 0.65],  // cyan-blue outer
 ];
-
-const iceTrailBufs = ICE_TRAIL_CONFIGS.map(() => {
-  const buf = new Float32Array(ICE_TRAIL_LEN * 3);
-  for (let i = 0; i < ICE_TRAIL_LEN; i++) { buf[i*3] = -300; buf[i*3+1] = 150; buf[i*3+2] = 400; }
-  return buf;
-});
-
-const iceTrailLines = ICE_TRAIL_CONFIGS.map(([color, opacity], idx) => {
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(iceTrailBufs[idx], 3));
-  geo.setDrawRange(0, ICE_TRAIL_LEN);
-  const mat  = new THREE.LineBasicMaterial({ color, transparent: true, opacity });
-  const line = new THREE.Line(geo, mat);
-  line.frustumCulled = false;
-  scene.add(line);
-  return { line, geo };
-});
+const { bufs: iceTrailBufs, lines: iceTrailLines } = makeTrail(ICE_TRAIL_CONFIGS, -300, 150, 400);
 
 // ─────────────────────────────────────────────
 //  CITY PLACEMENT
@@ -813,13 +695,18 @@ function buildCity() {
 //  COMBAT STATE
 // ─────────────────────────────────────────────
 const HERO_MAX_HEALTH       = 100;
+const HERO_AI_SPEED         = 38;
+const HERO_CHASE_RANGE      = 350;
+const HERO_ATTACK_RANGE     = 130;
+const HERO_FIRE_COOLDOWN    = 0.055;
 const INFERNO_MAX_HEALTH    = 100;
 const INFERNO_AI_SPEED      = 38;
 const INFERNO_CHASE_RANGE   = 350;
 const INFERNO_ATTACK_RANGE  = 130;
 const INFERNO_FIRE_COOLDOWN = 0.10;  // seconds between shots (continuous stream)
 const INFERNO_FIRE_DAMAGE   = 3;    // damage per firebolt hit (reduced since firing rapidly)
-const LIGHTNING_DAMAGE      = 18;   // damage per lightning hit
+const LIGHTNING_DAMAGE      = 18;   // damage per lightning hit (player-controlled)
+const LIGHTNING_DAMAGE_AI   = 3;    // damage when Thunderclap is AI-controlled (matches villain damage)
 
 const ICICLE_MAX_HEALTH    = 100;
 const ICICLE_AI_SPEED      = 38;
@@ -843,6 +730,16 @@ let heroDefeated        = false;
 let heroDefeatedTimer   = 0;
 let heroDefeatedVelY    = 0;
 let heroRespawning      = false;
+
+let heroAIState        = 'patrol';   // 'patrol' | 'chase' | 'attack'
+let heroAttackTarget   = 'inferno';  // 'inferno' | 'icicle' | 'foliage'
+const heroWaypoint     = new THREE.Vector3(0, 100, 0);
+let   heroWaypointTimer   = 0;
+let   heroAIYaw           = 0;
+let   heroAIPitch         = 0;
+let   heroFireCooldown    = 0;
+let   heroBoltGroup       = null;
+let   heroBoltTimer       = 0;
 
 let infernoState         = 'patrol';  // 'patrol' | 'chase' | 'attack' | 'defeated'
 let infernoAttackTarget  = 'hero';    // 'hero' | 'icicle'
@@ -897,10 +794,83 @@ const keys = {};
 window.addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'KeyH') toggleFloat();
-  if (e.code === 'KeyB' && !heroDefeated) yawAngle += Math.PI;
+  if (e.code === 'KeyB' && !isPlayerDefeated()) yawAngle += Math.PI;
+  if (e.code === 'Digit1') switchCharacter(1);
+  if (e.code === 'Digit2') switchCharacter(2);
+  if (e.code === 'Digit3') switchCharacter(3);
+  if (e.code === 'Digit4') switchCharacter(4);
   e.preventDefault();
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+// ─────────────────────────────────────────────
+//  CHARACTER SELECT
+// ─────────────────────────────────────────────
+let playerChar  = 'hero'; // 'hero' | 'inferno' | 'icicle' | 'foliage'
+let playerGroup = hero;   // reference to whichever group the player controls
+
+const CHAR_COLORS = {
+  hero:    '#1144cc',
+  inferno: '#ff3300',
+  icicle:  '#aaeeff',
+  foliage: '#44cc00',
+};
+const CHAR_LABELS = {
+  hero:    'THUNDERCLAP',
+  inferno: 'INFERNO',
+  icicle:  'ICICLE',
+  foliage: 'FOLIAGE',
+};
+
+function isPlayerDefeated() {
+  switch (playerChar) {
+    case 'hero':    return heroDefeated;
+    case 'inferno': return infernoState === 'defeated';
+    case 'icicle':  return icicleState  === 'defeated';
+    case 'foliage': return foliageState === 'defeated';
+  }
+  return false;
+}
+
+function switchCharacter(n) {
+  const names  = ['hero', 'inferno', 'icicle', 'foliage'];
+  const groups = [hero, inferno, icicle, foliage];
+  const idx = n - 1;
+  if (idx < 0 || idx > 3) return;
+  const newChar = names[idx];
+  if (playerChar === newChar) return;
+
+  playerChar  = newChar;
+  playerGroup = groups[idx];
+
+  // Inherit new character's current orientation
+  const euler = new THREE.Euler().setFromQuaternion(playerGroup.quaternion, 'YXZ');
+  yawAngle   = euler.y;
+  pitchAngle = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, euler.x));
+
+  // Snap camera to new character
+  camCurrentPos.copy(playerGroup.position).add(new THREE.Vector3(0, 2, 20));
+  camCurrentLook.copy(playerGroup.position);
+
+  // Update title badge
+  document.getElementById('title-badge').textContent = CHAR_LABELS[playerChar];
+
+  // Highlight the active character's health bar
+  ['hero-health-hud', 'inferno-health-hud', 'icicle-health-hud', 'foliage-health-hud'].forEach((id, i) => {
+    document.getElementById(id).classList.toggle('player-controlled', i === idx);
+  });
+
+  showCombatMessage(`NOW PLAYING AS ${CHAR_LABELS[playerChar]}!`, CHAR_COLORS[playerChar], 2500);
+}
+
+function firePlayerWeapon(superBoosting = false) {
+  switch (playerChar) {
+    case 'hero':    fireLightning(superBoosting); break;
+    case 'inferno': fireFirebolt(true); break;
+    case 'icicle':  fireIcebolt(true); break;
+    case 'foliage': fireVines(true); break;
+  }
+}
 
 // ─────────────────────────────────────────────
 //  FLOAT MODE
@@ -916,8 +886,10 @@ function toggleFloat() {
 
   isFloating = !isFloating;
 
-  if (flyModel)   flyModel.visible   = !isFloating;
-  if (floatModel) floatModel.visible =  isFloating;
+  if (playerChar === 'hero') {
+    if (flyModel)   flyModel.visible   = !isFloating;
+    if (floatModel) floatModel.visible =  isFloating;
+  }
 
   floatBtn.textContent = isFloating ? '⏸ HOVER' : '▶ FLY';
   floatBtn.className   = isFloating ? 'hover-mode' : 'fly-mode';
@@ -1131,7 +1103,7 @@ function takeDamage(target, amount) {
       heroDefeated       = true;
       heroDefeatedTimer  = 4.0;
       heroDefeatedVelY   = 10;
-      showCombatMessage('THUNDERCLAP IS DOWN!', '#ff3300', 4000);
+      showCombatMessage('THUNDERCLAP IS DOWN!', '#1144cc', 4000);
     }
   } else if (target === 'inferno') {
     if (infernoHealth <= 0 || infernoState === 'defeated') return;
@@ -1141,7 +1113,7 @@ function takeDamage(target, amount) {
       infernoState        = 'defeated';
       infernoDefeatedTimer = 4.0;
       infernoDefeatedVelY  = 10;
-      showCombatMessage('INFERNO DEFEATED!', '#00cfff', 4000);
+      showCombatMessage('INFERNO DEFEATED!', '#ff3300', 4000);
     }
   } else if (target === 'icicle') {
     if (icicleHealth <= 0 || icicleState === 'defeated') return;
@@ -1151,7 +1123,7 @@ function takeDamage(target, amount) {
       icicleState        = 'defeated';
       icicleDefeatedTimer = 4.0;
       icicleDefeatedVelY  = 10;
-      showCombatMessage('ICICLE DEFEATED!', '#ff8800', 4000);
+      showCombatMessage('ICICLE DEFEATED!', '#aaeeff', 4000);
     }
   } else if (target === 'foliage') {
     if (foliageHealth <= 0 || foliageState === 'defeated') return;
@@ -1161,7 +1133,7 @@ function takeDamage(target, amount) {
       foliageState        = 'defeated';
       foliageDefeatedTimer = 4.0;
       foliageDefeatedVelY  = 10;
-      showCombatMessage('FOLIAGE DEFEATED!', '#ff4488', 4000);
+      showCombatMessage('FOLIAGE DEFEATED!', '#44cc00', 4000);
     }
   }
 }
@@ -1176,7 +1148,7 @@ const FIRE_PARTICLE_LAYERS = [
   [0x771100, 34, 45,  18.0],  // dark ember
 ];
 
-function fireFirebolt() {
+function fireFirebolt(fromPlayer = false) {
   // Shoot forward in Inferno's facing direction, just like Thunderclap's lightning
   const boltDir = new THREE.Vector3(0, 0, -1).applyQuaternion(inferno.quaternion);
 
@@ -1196,14 +1168,28 @@ function fireFirebolt() {
   if (blocked) endPoint = bHits[0].point.clone();
 
   // Hit check — hero priority, then whichever enemy inferno is targeting
-  if (!blocked && infernoAttackTarget === 'hero' && distToSegment(origin, endPoint, hero.position) < 9) {
-    takeDamage('hero', INFERNO_FIRE_DAMAGE);
-  } else if (!blocked && infernoAttackTarget === 'icicle' && icicleState !== 'defeated' &&
-             distToSegment(origin, endPoint, icicle.position) < 9) {
-    takeDamage('icicle', INFERNO_FIRE_DAMAGE);
-  } else if (!blocked && infernoAttackTarget === 'foliage' && foliageState !== 'defeated' &&
-             distToSegment(origin, endPoint, foliage.position) < 9) {
-    takeDamage('foliage', INFERNO_FIRE_DAMAGE);
+  if (fromPlayer) {
+    // Player-controlled: hit any target in path (except self)
+    if (!blocked && !heroDefeated && playerChar !== 'hero' &&
+        distToSegment(origin, endPoint, hero.position) < 9)
+      takeDamage('hero', INFERNO_FIRE_DAMAGE);
+    if (!blocked && icicleState !== 'defeated' && playerChar !== 'icicle' &&
+        distToSegment(origin, endPoint, icicle.position) < 9)
+      takeDamage('icicle', INFERNO_FIRE_DAMAGE);
+    if (!blocked && foliageState !== 'defeated' && playerChar !== 'foliage' &&
+        distToSegment(origin, endPoint, foliage.position) < 9)
+      takeDamage('foliage', INFERNO_FIRE_DAMAGE);
+  } else {
+    // AI-controlled: use target priority; target 'hero' means playerGroup
+    if (!blocked && infernoAttackTarget === 'hero' && distToSegment(origin, endPoint, playerGroup.position) < 9) {
+      takeDamage(playerChar, INFERNO_FIRE_DAMAGE);
+    } else if (!blocked && infernoAttackTarget === 'icicle' && icicleState !== 'defeated' &&
+               distToSegment(origin, endPoint, icicle.position) < 9) {
+      takeDamage('icicle', INFERNO_FIRE_DAMAGE);
+    } else if (!blocked && infernoAttackTarget === 'foliage' && foliageState !== 'defeated' &&
+               distToSegment(origin, endPoint, foliage.position) < 9) {
+      takeDamage('foliage', INFERNO_FIRE_DAMAGE);
+    }
   }
 
   // ── Particle-cloud fire bolt (no lines) ──
@@ -1267,7 +1253,7 @@ const ICE_PARTICLE_LAYERS = [
   [0x2299cc, 34, 45,  18.0],  // deeper blue outer
 ];
 
-function fireIcebolt() {
+function fireIcebolt(fromPlayer = false) {
   const boltDir = new THREE.Vector3(0, 0, -1).applyQuaternion(icicle.quaternion);
   boltDir.x += (Math.random() - 0.5) * 0.35;
   boltDir.y += (Math.random() - 0.5) * 0.28;
@@ -1283,14 +1269,28 @@ function fireIcebolt() {
   if (blocked) endPoint = bHits[0].point.clone();
 
   // Hit check — hero priority, then whichever enemy icicle is targeting
-  if (!blocked && icicleAttackTarget === 'hero' && distToSegment(origin, endPoint, hero.position) < 9) {
-    takeDamage('hero', ICICLE_BEAM_DAMAGE);
-  } else if (!blocked && icicleAttackTarget === 'inferno' && infernoState !== 'defeated' &&
-             distToSegment(origin, endPoint, inferno.position) < 9) {
-    takeDamage('inferno', ICICLE_BEAM_DAMAGE);
-  } else if (!blocked && icicleAttackTarget === 'foliage' && foliageState !== 'defeated' &&
-             distToSegment(origin, endPoint, foliage.position) < 9) {
-    takeDamage('foliage', ICICLE_BEAM_DAMAGE);
+  if (fromPlayer) {
+    // Player-controlled: hit any target in path (except self)
+    if (!blocked && !heroDefeated && playerChar !== 'hero' &&
+        distToSegment(origin, endPoint, hero.position) < 9)
+      takeDamage('hero', ICICLE_BEAM_DAMAGE);
+    if (!blocked && infernoState !== 'defeated' && playerChar !== 'inferno' &&
+        distToSegment(origin, endPoint, inferno.position) < 9)
+      takeDamage('inferno', ICICLE_BEAM_DAMAGE);
+    if (!blocked && foliageState !== 'defeated' && playerChar !== 'foliage' &&
+        distToSegment(origin, endPoint, foliage.position) < 9)
+      takeDamage('foliage', ICICLE_BEAM_DAMAGE);
+  } else {
+    // AI-controlled: use target priority; target 'hero' means playerGroup
+    if (!blocked && icicleAttackTarget === 'hero' && distToSegment(origin, endPoint, playerGroup.position) < 9) {
+      takeDamage(playerChar, ICICLE_BEAM_DAMAGE);
+    } else if (!blocked && icicleAttackTarget === 'inferno' && infernoState !== 'defeated' &&
+               distToSegment(origin, endPoint, inferno.position) < 9) {
+      takeDamage('inferno', ICICLE_BEAM_DAMAGE);
+    } else if (!blocked && icicleAttackTarget === 'foliage' && foliageState !== 'defeated' &&
+               distToSegment(origin, endPoint, foliage.position) < 9) {
+      takeDamage('foliage', ICICLE_BEAM_DAMAGE);
+    }
   }
 
   const boltLen = origin.distanceTo(endPoint);
@@ -1342,7 +1342,7 @@ function fireIcebolt() {
 //  FOLIAGE COMBAT FUNCTIONS
 // ─────────────────────────────────────────────
 
-function fireVines() {
+function fireVines(fromPlayer = false) {
   const boltDir = new THREE.Vector3(0, 0, -1).applyQuaternion(foliage.quaternion);
   boltDir.x += (Math.random() - 0.5) * 0.3;
   boltDir.y += (Math.random() - 0.5) * 0.22;
@@ -1358,14 +1358,28 @@ function fireVines() {
   if (blocked) endPoint = bHits[0].point.clone();
 
   // Hit check — hero priority, then whichever enemy foliage is targeting
-  if (!blocked && foliageAttackTarget === 'hero' && distToSegment(origin, endPoint, hero.position) < 9) {
-    takeDamage('hero', FOLIAGE_VINE_DAMAGE);
-  } else if (!blocked && foliageAttackTarget === 'inferno' && infernoState !== 'defeated' &&
-             distToSegment(origin, endPoint, inferno.position) < 9) {
-    takeDamage('inferno', FOLIAGE_VINE_DAMAGE);
-  } else if (!blocked && foliageAttackTarget === 'icicle' && icicleState !== 'defeated' &&
-             distToSegment(origin, endPoint, icicle.position) < 9) {
-    takeDamage('icicle', FOLIAGE_VINE_DAMAGE);
+  if (fromPlayer) {
+    // Player-controlled: hit any target in path (except self)
+    if (!blocked && !heroDefeated && playerChar !== 'hero' &&
+        distToSegment(origin, endPoint, hero.position) < 9)
+      takeDamage('hero', FOLIAGE_VINE_DAMAGE);
+    if (!blocked && infernoState !== 'defeated' && playerChar !== 'inferno' &&
+        distToSegment(origin, endPoint, inferno.position) < 9)
+      takeDamage('inferno', FOLIAGE_VINE_DAMAGE);
+    if (!blocked && icicleState !== 'defeated' && playerChar !== 'icicle' &&
+        distToSegment(origin, endPoint, icicle.position) < 9)
+      takeDamage('icicle', FOLIAGE_VINE_DAMAGE);
+  } else {
+    // AI-controlled: use target priority; target 'hero' means playerGroup
+    if (!blocked && foliageAttackTarget === 'hero' && distToSegment(origin, endPoint, playerGroup.position) < 9) {
+      takeDamage(playerChar, FOLIAGE_VINE_DAMAGE);
+    } else if (!blocked && foliageAttackTarget === 'inferno' && infernoState !== 'defeated' &&
+               distToSegment(origin, endPoint, inferno.position) < 9) {
+      takeDamage('inferno', FOLIAGE_VINE_DAMAGE);
+    } else if (!blocked && foliageAttackTarget === 'icicle' && icicleState !== 'defeated' &&
+               distToSegment(origin, endPoint, icicle.position) < 9) {
+      takeDamage('icicle', FOLIAGE_VINE_DAMAGE);
+    }
   }
 
   const boltLen = origin.distanceTo(endPoint);
@@ -1469,18 +1483,146 @@ function updateHeroDefeated(dt) {
       heroHealthFill.style.width = '100%';
       heroDefeated = false;
       hero.position.set(
-        inferno.position.x + (Math.random() < 0.5 ? -1 : 1) * (200 + Math.random() * 150),
+        playerGroup.position.x + (Math.random() < 0.5 ? -1 : 1) * (200 + Math.random() * 150),
         120 + Math.random() * 60,
-        inferno.position.z + (Math.random() < 0.5 ? -1 : 1) * (200 + Math.random() * 150)
+        playerGroup.position.z + (Math.random() < 0.5 ? -1 : 1) * (200 + Math.random() * 150)
       );
       hero.rotation.set(0, 0, 0);
-      pitchAngle       = 0;
-      yawAngle         = 0;
+      if (playerChar === 'hero') { pitchAngle = 0; yawAngle = 0; }
       hero.visible     = true;
       heroDefeatedVelY = 0;
       heroRespawning   = false;
-      showCombatMessage('THUNDERCLAP RETURNS!', '#88aaff', 2500);
+      showCombatMessage('THUNDERCLAP RETURNS!', '#1144cc', 2500);
     }, 5000);
+  }
+}
+
+// ── AI lightning for Thunderclap when not player-controlled (adds spread) ──
+function fireLightningAI() {
+  const boltDir = new THREE.Vector3(0, 0, -1).applyQuaternion(hero.quaternion);
+  boltDir.x += (Math.random() - 0.5) * 0.3;
+  boltDir.y += (Math.random() - 0.5) * 0.22;
+  boltDir.normalize();
+
+  const handOffset = new THREE.Vector3(0.9, -0.3, -1.5).applyQuaternion(hero.quaternion);
+  const origin     = hero.position.clone().add(handOffset);
+  let endPoint     = origin.clone().addScaledVector(boltDir, 400);
+
+  raycaster.set(origin, boltDir);
+  const bHits   = raycaster.intersectObjects(buildingMeshes, false);
+  const blocked = bHits.length > 0 && bHits[0].distance < origin.distanceTo(endPoint);
+  if (blocked) endPoint = bHits[0].point.clone();
+
+  // Hit any target in path (hero AI never hits itself)
+  if (!blocked && infernoState !== 'defeated' && infernoHealth > 0 &&
+      distToSegment(origin, endPoint, inferno.position) < 9)
+    takeDamage('inferno', LIGHTNING_DAMAGE_AI);
+  if (!blocked && icicleState !== 'defeated' && icicleHealth > 0 &&
+      distToSegment(origin, endPoint, icicle.position) < 9)
+    takeDamage('icicle', LIGHTNING_DAMAGE_AI);
+  if (!blocked && foliageState !== 'defeated' && foliageHealth > 0 &&
+      distToSegment(origin, endPoint, foliage.position) < 9)
+    takeDamage('foliage', LIGHTNING_DAMAGE_AI);
+  // Hit the player if they aren't Thunderclap
+  if (!blocked && playerChar !== 'hero' && !isPlayerDefeated() &&
+      distToSegment(origin, endPoint, playerGroup.position) < 9)
+    takeDamage(playerChar, LIGHTNING_DAMAGE_AI);
+
+  if (heroBoltGroup) { scene.remove(heroBoltGroup); heroBoltGroup = null; }
+  heroBoltGroup = new THREE.Group();
+  for (const [color, jitterMult] of BOLT_LAYERS) {
+    const pts  = buildJaggedLine(origin, endPoint, 18, 3.5 * jitterMult);
+    heroBoltGroup.add(new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({ color, transparent: true, opacity: 1.0 })
+    ));
+  }
+  heroBoltTimer = BOLT_DURATION;
+  scene.add(heroBoltGroup);
+
+  const impact = new THREE.PointLight(0x88ddff, 60, 150);
+  impact.position.copy(endPoint);
+  scene.add(impact);
+  setTimeout(() => scene.remove(impact), 120);
+}
+
+function updateThunderclapAI(dt, t) {
+  if (heroDefeated) { updateHeroDefeated(dt); return; }
+
+  const distToInferno = infernoState !== 'defeated' ? hero.position.distanceTo(inferno.position) : Infinity;
+  const distToIcicle  = icicleState  !== 'defeated' ? hero.position.distanceTo(icicle.position)  : Infinity;
+  const distToFoliage = foliageState !== 'defeated' ? hero.position.distanceTo(foliage.position) : Infinity;
+  const closestDist   = Math.min(distToInferno, distToIcicle, distToFoliage);
+  const closestTarget = distToInferno <= distToIcicle && distToInferno <= distToFoliage ? 'inferno'
+                      : distToIcicle  <= distToFoliage ? 'icicle' : 'foliage';
+
+  if (closestDist < HERO_ATTACK_RANGE) {
+    heroAIState = 'attack'; heroAttackTarget = closestTarget;
+  } else if (closestDist < HERO_CHASE_RANGE) {
+    heroAIState = 'chase';  heroAttackTarget = closestTarget;
+  } else {
+    heroAIState = 'patrol';
+  }
+
+  const heroChasePos = heroAttackTarget === 'inferno' ? inferno.position :
+                       heroAttackTarget === 'icicle'  ? icicle.position  : foliage.position;
+
+  let target;
+  if (heroAIState === 'patrol') {
+    heroWaypointTimer -= dt;
+    if (heroWaypointTimer <= 0 || hero.position.distanceTo(heroWaypoint) < 40) {
+      const angle  = Math.random() * Math.PI * 2;
+      const radius = 200 + Math.random() * 320;
+      heroWaypoint.set(
+        playerGroup.position.x + Math.cos(angle) * radius,
+        75 + Math.random() * 140,
+        playerGroup.position.z + Math.sin(angle) * radius
+      );
+      heroWaypointTimer = 4 + Math.random() * 6;
+    }
+    target = heroWaypoint;
+  } else {
+    target = heroChasePos;
+  }
+
+  // Steer toward target
+  const toTarget    = new THREE.Vector3().subVectors(target, hero.position);
+  const flatDist    = Math.sqrt(toTarget.x * toTarget.x + toTarget.z * toTarget.z);
+  const targetYaw   = Math.atan2(-toTarget.x, -toTarget.z);
+  const targetPitch = Math.atan2(toTarget.y, flatDist + 0.001);
+
+  let dyaw = targetYaw - heroAIYaw;
+  while (dyaw >  Math.PI) dyaw -= Math.PI * 2;
+  while (dyaw < -Math.PI) dyaw += Math.PI * 2;
+  heroAIYaw   += dyaw * Math.min(1, 2.5 * dt);
+  heroAIPitch += (targetPitch - heroAIPitch) * Math.min(1, 2.5 * dt);
+  heroAIPitch  = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, heroAIPitch));
+
+  const hPitch = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), heroAIPitch);
+  const hYaw   = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), heroAIYaw);
+  hero.quaternion.copy(hYaw).multiply(hPitch);
+
+  // Move
+  const heroAISpeedActual = heroAIState === 'attack' ? HERO_AI_SPEED * 0.35 : HERO_AI_SPEED;
+  const hfwd = new THREE.Vector3(0, 0, -1).applyQuaternion(hero.quaternion);
+  const heroDistToTarget = hero.position.distanceTo(heroChasePos);
+  const tooClose = heroAIState === 'attack' && heroDistToTarget < HERO_ATTACK_RANGE * 0.55;
+  const heroTentative = hero.position.clone().addScaledVector(hfwd, tooClose ? 0 : heroAISpeedActual * dt);
+  heroTentative.y = Math.max(15, heroTentative.y);
+  if (!heroHitsBuilding(heroTentative)) {
+    hero.position.copy(heroTentative);
+  } else {
+    hero.position.y = Math.max(15, hero.position.y);
+  }
+
+  // Pulse electric glow
+  heroElectricGlow.intensity = 3 + Math.sin(t * 9 + 0.5) * 1.8;
+
+  // Fire lightning on cooldown while attacking
+  heroFireCooldown -= dt;
+  if (heroAIState === 'attack' && heroFireCooldown <= 0) {
+    fireLightningAI();
+    heroFireCooldown = HERO_FIRE_COOLDOWN;
   }
 }
 
@@ -1500,32 +1642,35 @@ function updateInfernoAI(dt, t) {
         infernoHealthFill.style.width = '100%';
         infernoState = 'patrol';
         inferno.position.set(
-          hero.position.x + (Math.random() < 0.5 ? -1 : 1) * (250 + Math.random() * 200),
+          playerGroup.position.x + (Math.random() < 0.5 ? -1 : 1) * (250 + Math.random() * 200),
           120 + Math.random() * 80,
-          hero.position.z + (Math.random() < 0.5 ? -1 : 1) * (250 + Math.random() * 200)
+          playerGroup.position.z + (Math.random() < 0.5 ? -1 : 1) * (250 + Math.random() * 200)
         );
         inferno.rotation.set(0, 0, 0);
         inferno.visible      = true;
         infernoDefeatedVelY  = 0;
         infernoRespawning    = false;
-        showCombatMessage('INFERNO RETURNS!', '#ff4400', 2500);
+        showCombatMessage('INFERNO RETURNS!', '#ff3300', 2500);
       }, 8000);
     }
     return;
   }
 
-  const distToHero    = inferno.position.distanceTo(hero.position);
+  // Skip AI logic when the player is controlling Inferno
+  if (playerChar === 'inferno') return;
+
+  const distToHero    = inferno.position.distanceTo(playerGroup.position);
   const distToIcicle  = icicleState  !== 'defeated' ? inferno.position.distanceTo(icicle.position)  : Infinity;
   const distToFoliage = foliageState !== 'defeated' ? inferno.position.distanceTo(foliage.position) : Infinity;
   const closestEnemyDist_I   = Math.min(distToIcicle, distToFoliage);
   const closestEnemyTarget_I = distToIcicle <= distToFoliage ? 'icicle' : 'foliage';
 
   // State machine — hero takes priority, then closest other enemy
-  if (!heroDefeated && distToHero < INFERNO_ATTACK_RANGE) {
+  if (!isPlayerDefeated() && distToHero < INFERNO_ATTACK_RANGE) {
     infernoState = 'attack'; infernoAttackTarget = 'hero';
   } else if (closestEnemyDist_I < INFERNO_ATTACK_RANGE) {
     infernoState = 'attack'; infernoAttackTarget = closestEnemyTarget_I;
-  } else if (!heroDefeated && distToHero < INFERNO_CHASE_RANGE) {
+  } else if (!isPlayerDefeated() && distToHero < INFERNO_CHASE_RANGE) {
     infernoState = 'chase'; infernoAttackTarget = 'hero';
   } else if (closestEnemyDist_I < INFERNO_CHASE_RANGE) {
     infernoState = 'chase'; infernoAttackTarget = closestEnemyTarget_I;
@@ -1543,9 +1688,9 @@ function updateInfernoAI(dt, t) {
       const angle  = Math.random() * Math.PI * 2;
       const radius = 200 + Math.random() * 320;
       infernoWaypoint.set(
-        hero.position.x + Math.cos(angle) * radius,
+        playerGroup.position.x + Math.cos(angle) * radius,
         75 + Math.random() * 140,
-        hero.position.z + Math.sin(angle) * radius
+        playerGroup.position.z + Math.sin(angle) * radius
       );
       infernoWaypointTimer = 4 + Math.random() * 6;
     }
@@ -1611,9 +1756,9 @@ function updateIcicleAI(dt, t) {
         icicleHealthFill.style.width = '100%';
         icicleState = 'patrol';
         icicle.position.set(
-          hero.position.x + (Math.random() < 0.5 ? -1 : 1) * (250 + Math.random() * 200),
+          playerGroup.position.x + (Math.random() < 0.5 ? -1 : 1) * (250 + Math.random() * 200),
           120 + Math.random() * 80,
-          hero.position.z + (Math.random() < 0.5 ? -1 : 1) * (250 + Math.random() * 200)
+          playerGroup.position.z + (Math.random() < 0.5 ? -1 : 1) * (250 + Math.random() * 200)
         );
         icicle.rotation.set(0, 0, 0);
         icicle.visible      = true;
@@ -1625,18 +1770,21 @@ function updateIcicleAI(dt, t) {
     return;
   }
 
-  const distToHero_IC    = icicle.position.distanceTo(hero.position);
+  // Skip AI logic when the player is controlling Icicle
+  if (playerChar === 'icicle') return;
+
+  const distToHero_IC    = icicle.position.distanceTo(playerGroup.position);
   const distToInferno_IC = infernoState  !== 'defeated' ? icicle.position.distanceTo(inferno.position)  : Infinity;
   const distToFoliage_IC = foliageState  !== 'defeated' ? icicle.position.distanceTo(foliage.position)  : Infinity;
   const closestEnemyDist_IC   = Math.min(distToInferno_IC, distToFoliage_IC);
   const closestEnemyTarget_IC = distToInferno_IC <= distToFoliage_IC ? 'inferno' : 'foliage';
 
   // State machine — hero takes priority, then closest other enemy
-  if (!heroDefeated && distToHero_IC < ICICLE_ATTACK_RANGE) {
+  if (!isPlayerDefeated() && distToHero_IC < ICICLE_ATTACK_RANGE) {
     icicleState = 'attack'; icicleAttackTarget = 'hero';
   } else if (closestEnemyDist_IC < ICICLE_ATTACK_RANGE) {
     icicleState = 'attack'; icicleAttackTarget = closestEnemyTarget_IC;
-  } else if (!heroDefeated && distToHero_IC < ICICLE_CHASE_RANGE) {
+  } else if (!isPlayerDefeated() && distToHero_IC < ICICLE_CHASE_RANGE) {
     icicleState = 'chase'; icicleAttackTarget = 'hero';
   } else if (closestEnemyDist_IC < ICICLE_CHASE_RANGE) {
     icicleState = 'chase'; icicleAttackTarget = closestEnemyTarget_IC;
@@ -1653,9 +1801,9 @@ function updateIcicleAI(dt, t) {
       const angle  = Math.random() * Math.PI * 2;
       const radius = 200 + Math.random() * 320;
       icicleWaypoint.set(
-        hero.position.x + Math.cos(angle) * radius,
+        playerGroup.position.x + Math.cos(angle) * radius,
         75 + Math.random() * 140,
-        hero.position.z + Math.sin(angle) * radius
+        playerGroup.position.z + Math.sin(angle) * radius
       );
       icicleWaypointTimer = 4 + Math.random() * 6;
     }
@@ -1721,9 +1869,9 @@ function updateFoliageAI(dt, t) {
         foliageHealthFill.style.width = '100%';
         foliageState = 'patrol';
         foliage.position.set(
-          hero.position.x + (Math.random() < 0.5 ? -1 : 1) * (250 + Math.random() * 200),
+          playerGroup.position.x + (Math.random() < 0.5 ? -1 : 1) * (250 + Math.random() * 200),
           120 + Math.random() * 80,
-          hero.position.z + (Math.random() < 0.5 ? -1 : 1) * (250 + Math.random() * 200)
+          playerGroup.position.z + (Math.random() < 0.5 ? -1 : 1) * (250 + Math.random() * 200)
         );
         foliage.rotation.set(0, 0, 0);
         foliage.visible      = true;
@@ -1735,18 +1883,21 @@ function updateFoliageAI(dt, t) {
     return;
   }
 
-  const distToHero_F    = foliage.position.distanceTo(hero.position);
+  // Skip AI logic when the player is controlling Foliage
+  if (playerChar === 'foliage') return;
+
+  const distToHero_F    = foliage.position.distanceTo(playerGroup.position);
   const distToInferno_F = infernoState !== 'defeated' ? foliage.position.distanceTo(inferno.position) : Infinity;
   const distToIcicle_F  = icicleState  !== 'defeated' ? foliage.position.distanceTo(icicle.position)  : Infinity;
   const closestEnemyDist_F   = Math.min(distToInferno_F, distToIcicle_F);
   const closestEnemyTarget_F = distToInferno_F <= distToIcicle_F ? 'inferno' : 'icicle';
 
   // State machine — hero takes priority, then closest other enemy
-  if (!heroDefeated && distToHero_F < FOLIAGE_ATTACK_RANGE) {
+  if (!isPlayerDefeated() && distToHero_F < FOLIAGE_ATTACK_RANGE) {
     foliageState = 'attack'; foliageAttackTarget = 'hero';
   } else if (closestEnemyDist_F < FOLIAGE_ATTACK_RANGE) {
     foliageState = 'attack'; foliageAttackTarget = closestEnemyTarget_F;
-  } else if (!heroDefeated && distToHero_F < FOLIAGE_CHASE_RANGE) {
+  } else if (!isPlayerDefeated() && distToHero_F < FOLIAGE_CHASE_RANGE) {
     foliageState = 'chase'; foliageAttackTarget = 'hero';
   } else if (closestEnemyDist_F < FOLIAGE_CHASE_RANGE) {
     foliageState = 'chase'; foliageAttackTarget = closestEnemyTarget_F;
@@ -1763,9 +1914,9 @@ function updateFoliageAI(dt, t) {
       const angle  = Math.random() * Math.PI * 2;
       const radius = 200 + Math.random() * 320;
       foliageWaypoint.set(
-        hero.position.x + Math.cos(angle) * radius,
+        playerGroup.position.x + Math.cos(angle) * radius,
         75 + Math.random() * 140,
-        hero.position.z + Math.sin(angle) * radius
+        playerGroup.position.z + Math.sin(angle) * radius
       );
       foliageWaypointTimer = 4 + Math.random() * 6;
     }
@@ -1844,6 +1995,24 @@ Promise.all(allPromises).then(() => {
 // ─────────────────────────────────────────────
 //  ANIMATION LOOP
 // ─────────────────────────────────────────────
+const _TRAIL_SPREADS = [0.3, 1.0, 1.8];
+function updateVillainTrail(bufs, lines, entityPos, entityVisible, entityState) {
+  for (let ti = 0; ti < bufs.length; ti++) {
+    const buf    = bufs[ti];
+    const spread = _TRAIL_SPREADS[ti];
+    for (let i = TRAIL_LEN - 1; i > 0; i--) {
+      buf[i * 3]     = buf[(i - 1) * 3];
+      buf[i * 3 + 1] = buf[(i - 1) * 3 + 1];
+      buf[i * 3 + 2] = buf[(i - 1) * 3 + 2];
+    }
+    buf[0] = entityPos.x + (Math.random() - 0.5) * spread * 1.2;
+    buf[1] = entityPos.y + (Math.random() - 0.5) * spread * 1.2;
+    buf[2] = entityPos.z + (Math.random() - 0.5) * spread * 1.2;
+    lines[ti].geo.attributes.position.needsUpdate = true;
+    lines[ti].line.visible = entityVisible && entityState === 'chase';
+  }
+}
+
 function animate() {
   const dt = Math.min(clock.getDelta(), 0.05);
   if (!ready) return;
@@ -1885,7 +2054,7 @@ function animate() {
   }
 
   // ── Input / flight ──
-  if (!heroDefeated) {
+  if (!isPlayerDefeated()) {
     const speed = isFloating ? 0 : BASE_SPEED * (superBoosting ? SUPER_BOOST_MULT : boosting ? BOOST_MULT : 1.0);
 
     if (keys['ArrowUp'])    pitchAngle = Math.min(pitchAngle + PITCH_RATE * dt,  MAX_PITCH);
@@ -1902,31 +2071,31 @@ function animate() {
     const rollAmt = !isFloating && keys['ArrowLeft'] ? 0.38
                   : !isFloating && keys['ArrowRight'] ? -0.38 : 0;
     _rollQ.setFromAxisAngle(_rollAxis, rollAmt);
-    hero.quaternion.copy(_yawQ).multiply(_pitchQ).multiply(_rollQ);
+    playerGroup.quaternion.copy(_yawQ).multiply(_pitchQ).multiply(_rollQ);
 
     // ── Movement ──
-    _fwd.set(0, 0, -1).applyQuaternion(hero.quaternion).normalize();
-    const _tentative = hero.position.clone().addScaledVector(_fwd, speed * dt);
+    _fwd.set(0, 0, -1).applyQuaternion(playerGroup.quaternion).normalize();
+    const _tentative = playerGroup.position.clone().addScaledVector(_fwd, speed * dt);
     _tentative.y = Math.max(4, _tentative.y);
 
     // Building collision: sphere-cast against actual mesh geometry
     if (!heroHitsBuilding(_tentative)) {
-      hero.position.copy(_tentative);
+      playerGroup.position.copy(_tentative);
     } else {
       // Allow vertical escape only
-      const _vertOnly = new THREE.Vector3(hero.position.x, _tentative.y, hero.position.z);
-      if (!heroHitsBuilding(_vertOnly)) hero.position.y = _tentative.y;
+      const _vertOnly = new THREE.Vector3(playerGroup.position.x, _tentative.y, playerGroup.position.z);
+      if (!heroHitsBuilding(_vertOnly)) playerGroup.position.y = _tentative.y;
     }
   } else {
-    updateHeroDefeated(dt);
+    if (playerChar === 'hero') updateHeroDefeated(dt);
   }
 
   // ── Camera: shifts above hero when diving, below when climbing ──
   // pitchAngle > 0 = nose up (climbing)  → camera drops below → view from below
   // pitchAngle < 0 = nose down (diving)  → camera rises above → view from above
   const pitchCamY = 2 - pitchAngle * 12;
-  _desiredP.set(0, pitchCamY, 20).applyQuaternion(_yawQ).add(hero.position);
-  _desiredL.copy(hero.position).add(new THREE.Vector3(0, 3, 0));
+  _desiredP.set(0, pitchCamY, 20).applyQuaternion(_yawQ).add(playerGroup.position);
+  _desiredL.copy(playerGroup.position).add(new THREE.Vector3(0, 3, 0));
   camCurrentPos.lerp(_desiredP,  CAM_LERP);
   camCurrentLook.lerp(_desiredL, CAM_LERP);
   camera.position.copy(camCurrentPos);
@@ -1944,9 +2113,9 @@ function animate() {
       buf[i * 3 + 2] = buf[(i - 1) * 3 + 2];
     }
     const jitter = superBoosting ? spread * 14.0 : boosting ? spread * 2.5 : spread * 1.2;
-    buf[0] = hero.position.x + (Math.random() - 0.5) * jitter;
-    buf[1] = hero.position.y + (Math.random() - 0.5) * jitter;
-    buf[2] = hero.position.z + (Math.random() - 0.5) * jitter;
+    buf[0] = playerGroup.position.x + (Math.random() - 0.5) * jitter;
+    buf[1] = playerGroup.position.y + (Math.random() - 0.5) * jitter;
+    buf[2] = playerGroup.position.z + (Math.random() - 0.5) * jitter;
     trailLines[ti].geo.attributes.position.needsUpdate = true;
     trailLines[ti].line.visible = boosting || superBoosting;
     trailLines[ti].line.material.opacity = TRAIL_CONFIGS[ti][1];
@@ -1955,11 +2124,11 @@ function animate() {
   // Electric glow: pulses hard during boost, dim otherwise
   heroElectricGlow.intensity = superBoosting ? 22 + Math.sin(t * 45) * 8 : boosting ? 5 + Math.sin(t * 22) * 2 : (isFloating ? 0.5 : 1.0);
 
-  // ── Lightning (continuous while F held, fires every BOLT_COOLDOWN seconds) ──
-  if (!heroDefeated) {
+  // ── Weapon (continuous while F held, fires every BOLT_COOLDOWN seconds) ──
+  if (!isPlayerDefeated()) {
     lightningCooldown -= dt;
     if (firingLightning && lightningCooldown <= 0) {
-      fireLightning(superBoosting);
+      firePlayerWeapon(superBoosting);
       lightningCooldown = BOLT_COOLDOWN;
     }
   }
@@ -1969,25 +2138,20 @@ function animate() {
     if (boltTimer <= 0) { scene.remove(boltGroup); boltGroup = null; }
   }
 
+  // ── Thunderclap AI (when player is controlling a different character) ──
+  if (playerChar !== 'hero') updateThunderclapAI(dt, t);
+
+  // ── Thunderclap AI bolt timer ──
+  if (heroBoltGroup) {
+    heroBoltTimer -= dt;
+    if (heroBoltTimer <= 0) { scene.remove(heroBoltGroup); heroBoltGroup = null; }
+  }
+
   // ── Inferno AI ──
   updateInfernoAI(dt, t);
 
   // ── Inferno fire trail ──
-  const fireTrailSpreads = [0.3, 1.0, 1.8];
-  for (let ti = 0; ti < fireTrailBufs.length; ti++) {
-    const fbuf    = fireTrailBufs[ti];
-    const fspread = fireTrailSpreads[ti];
-    for (let i = FIRE_TRAIL_LEN - 1; i > 0; i--) {
-      fbuf[i * 3]     = fbuf[(i - 1) * 3];
-      fbuf[i * 3 + 1] = fbuf[(i - 1) * 3 + 1];
-      fbuf[i * 3 + 2] = fbuf[(i - 1) * 3 + 2];
-    }
-    fbuf[0] = inferno.position.x + (Math.random() - 0.5) * fspread * 1.2;
-    fbuf[1] = inferno.position.y + (Math.random() - 0.5) * fspread * 1.2;
-    fbuf[2] = inferno.position.z + (Math.random() - 0.5) * fspread * 1.2;
-    fireTrailLines[ti].geo.attributes.position.needsUpdate = true;
-    fireTrailLines[ti].line.visible = inferno.visible && infernoState === 'chase';
-  }
+  updateVillainTrail(fireTrailBufs, fireTrailLines, inferno.position, inferno.visible, infernoState);
 
   // ── Inferno bolt timer ──
   if (infernoBoltGroup) {
@@ -1999,21 +2163,7 @@ function animate() {
   updateIcicleAI(dt, t);
 
   // ── Icicle ice trail ──
-  const iceTrailSpreads = [0.3, 1.0, 1.8];
-  for (let ti = 0; ti < iceTrailBufs.length; ti++) {
-    const ibuf    = iceTrailBufs[ti];
-    const ispread = iceTrailSpreads[ti];
-    for (let i = ICE_TRAIL_LEN - 1; i > 0; i--) {
-      ibuf[i * 3]     = ibuf[(i - 1) * 3];
-      ibuf[i * 3 + 1] = ibuf[(i - 1) * 3 + 1];
-      ibuf[i * 3 + 2] = ibuf[(i - 1) * 3 + 2];
-    }
-    ibuf[0] = icicle.position.x + (Math.random() - 0.5) * ispread * 1.2;
-    ibuf[1] = icicle.position.y + (Math.random() - 0.5) * ispread * 1.2;
-    ibuf[2] = icicle.position.z + (Math.random() - 0.5) * ispread * 1.2;
-    iceTrailLines[ti].geo.attributes.position.needsUpdate = true;
-    iceTrailLines[ti].line.visible = icicle.visible && icicleState === 'chase';
-  }
+  updateVillainTrail(iceTrailBufs, iceTrailLines, icicle.position, icicle.visible, icicleState);
 
   // ── Icicle bolt timer ──
   if (icicleBoltGroup) {
@@ -2025,21 +2175,7 @@ function animate() {
   updateFoliageAI(dt, t);
 
   // ── Foliage vine trail ──
-  const vineTrailSpreads = [0.3, 1.0, 1.8];
-  for (let ti = 0; ti < vineTrailBufs.length; ti++) {
-    const vbuf    = vineTrailBufs[ti];
-    const vspread = vineTrailSpreads[ti];
-    for (let i = VINE_TRAIL_LEN - 1; i > 0; i--) {
-      vbuf[i * 3]     = vbuf[(i - 1) * 3];
-      vbuf[i * 3 + 1] = vbuf[(i - 1) * 3 + 1];
-      vbuf[i * 3 + 2] = vbuf[(i - 1) * 3 + 2];
-    }
-    vbuf[0] = foliage.position.x + (Math.random() - 0.5) * vspread * 1.2;
-    vbuf[1] = foliage.position.y + (Math.random() - 0.5) * vspread * 1.2;
-    vbuf[2] = foliage.position.z + (Math.random() - 0.5) * vspread * 1.2;
-    vineTrailLines[ti].geo.attributes.position.needsUpdate = true;
-    vineTrailLines[ti].line.visible = foliage.visible && foliageState === 'chase';
-  }
+  updateVillainTrail(vineTrailBufs, vineTrailLines, foliage.position, foliage.visible, foliageState);
 
   // ── Foliage bolt timer ──
   if (foliageBoltGroup) {

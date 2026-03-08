@@ -26,29 +26,6 @@ body {
   z-index: 10;
 }
 
-#speed-display {
-  position: absolute;
-  bottom: 30px;
-  left: 50%;
-  transform: translateX(-50%);
-  text-align: center;
-  color: #00cfff;
-  text-shadow: 0 0 10px #00cfff, 0 0 20px #00cfff;
-}
-
-#speed-label {
-  font-size: 11px;
-  letter-spacing: 4px;
-  text-transform: uppercase;
-  opacity: 0.7;
-  margin-bottom: 4px;
-}
-
-#speed-value {
-  font-size: 36px;
-  font-weight: bold;
-  letter-spacing: 2px;
-}
 
 #boost-indicator {
   position: absolute;
@@ -360,4 +337,12 @@ body {
 
 #combat-message.visible {
   opacity: 1;
+}
+
+/* Active player character health bar highlight */
+.player-controlled {
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  padding: 2px 4px;
 }
