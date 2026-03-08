@@ -666,6 +666,11 @@ const LIGHTNING_DAMAGE      = 18;   // damage per lightning hit
 let heroHealth    = HERO_MAX_HEALTH;
 let infernoHealth = INFERNO_MAX_HEALTH;
 
+let heroDefeated        = false;
+let heroDefeatedTimer   = 0;
+let heroDefeatedVelY    = 0;
+let heroRespawning      = false;
+
 let infernoState         = 'patrol';  // 'patrol' | 'chase' | 'attack' | 'defeated'
 const infernoWaypoint    = new THREE.Vector3(300, 150, -400);
 let   infernoWaypointTimer  = 0;
@@ -689,6 +694,7 @@ const keys = {};
 window.addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'KeyH') toggleFloat();
+  if (e.code === 'KeyB' && !heroDefeated) yawAngle += Math.PI;
   e.preventDefault();
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
@@ -894,15 +900,14 @@ function hideCombatMessage() {
 
 function takeDamage(target, amount) {
   if (target === 'hero') {
-    if (heroHealth <= 0) return;
+    if (heroHealth <= 0 || heroDefeated) return;
     heroHealth = Math.max(0, heroHealth - amount);
     heroHealthFill.style.width = (heroHealth / HERO_MAX_HEALTH * 100) + '%';
     if (heroHealth <= 0) {
-      showCombatMessage('THUNDERCLAP IS DOWN!', '#ff3300', 3000);
-      setTimeout(() => {
-        heroHealth = HERO_MAX_HEALTH;
-        heroHealthFill.style.width = '100%';
-      }, 3000);
+      heroDefeated       = true;
+      heroDefeatedTimer  = 4.0;
+      heroDefeatedVelY   = 10;
+      showCombatMessage('THUNDERCLAP IS DOWN!', '#ff3300', 4000);
     }
   } else {
     if (infernoHealth <= 0 || infernoState === 'defeated') return;
@@ -972,6 +977,43 @@ function fireFirebolt() {
   muzzle.position.copy(origin);
   scene.add(muzzle);
   setTimeout(() => scene.remove(muzzle), 90);
+}
+
+function updateHeroDefeated(dt) {
+  heroDefeatedTimer -= dt;
+  heroDefeatedVelY  -= 90 * dt;
+  hero.position.y   += heroDefeatedVelY * dt;
+
+  // Stop at ground level
+  if (hero.position.y < 1) {
+    hero.position.y  = 1;
+    heroDefeatedVelY = 0;
+  }
+
+  hero.rotation.z   += 3.0 * dt;
+  hero.rotation.x   += 1.5 * dt;
+
+  if (heroDefeatedTimer <= 0 && !heroRespawning) {
+    hero.visible   = false;
+    heroRespawning = true;
+    setTimeout(() => {
+      heroHealth = HERO_MAX_HEALTH;
+      heroHealthFill.style.width = '100%';
+      heroDefeated = false;
+      hero.position.set(
+        inferno.position.x + (Math.random() < 0.5 ? -1 : 1) * (200 + Math.random() * 150),
+        120 + Math.random() * 60,
+        inferno.position.z + (Math.random() < 0.5 ? -1 : 1) * (200 + Math.random() * 150)
+      );
+      hero.rotation.set(0, 0, 0);
+      pitchAngle       = 0;
+      yawAngle         = 0;
+      hero.visible     = true;
+      heroDefeatedVelY = 0;
+      heroRespawning   = false;
+      showCombatMessage('THUNDERCLAP RETURNS!', '#88aaff', 2500);
+    }, 5000);
+  }
 }
 
 function updateInfernoAI(dt, t) {
@@ -1147,36 +1189,40 @@ function animate() {
   }
 
   // ── Input / flight ──
-  const speed = isFloating ? 0 : BASE_SPEED * (boosting ? BOOST_MULT : 1.0);
+  if (!heroDefeated) {
+    const speed = isFloating ? 0 : BASE_SPEED * (boosting ? BOOST_MULT : 1.0);
 
-  if (keys['ArrowUp'])    pitchAngle = Math.min(pitchAngle + PITCH_RATE * dt,  MAX_PITCH);
-  if (keys['ArrowDown'])  pitchAngle = Math.max(pitchAngle - PITCH_RATE * dt, -MAX_PITCH);
-  if (keys['ArrowLeft'])  yawAngle  += YAW_RATE * dt;
-  if (keys['ArrowRight']) yawAngle  -= YAW_RATE * dt;
+    if (keys['ArrowUp'])    pitchAngle = Math.min(pitchAngle + PITCH_RATE * dt,  MAX_PITCH);
+    if (keys['ArrowDown'])  pitchAngle = Math.max(pitchAngle - PITCH_RATE * dt, -MAX_PITCH);
+    if (keys['ArrowLeft'])  yawAngle  += YAW_RATE * dt;
+    if (keys['ArrowRight']) yawAngle  -= YAW_RATE * dt;
 
-  // Floating: level out pitch naturally
-  if (isFloating || (!keys['ArrowUp'] && !keys['ArrowDown'])) pitchAngle *= 0.97;
+    // Floating: level out pitch naturally
+    if (isFloating || (!keys['ArrowUp'] && !keys['ArrowDown'])) pitchAngle *= 0.97;
 
-  // ── Orientation ──
-  _pitchQ.setFromAxisAngle(_pitchAxis, pitchAngle);
-  _yawQ.setFromAxisAngle(_yawAxis, yawAngle);
-  const rollAmt = !isFloating && keys['ArrowLeft'] ? 0.38
-                : !isFloating && keys['ArrowRight'] ? -0.38 : 0;
-  _rollQ.setFromAxisAngle(_rollAxis, rollAmt);
-  hero.quaternion.copy(_yawQ).multiply(_pitchQ).multiply(_rollQ);
+    // ── Orientation ──
+    _pitchQ.setFromAxisAngle(_pitchAxis, pitchAngle);
+    _yawQ.setFromAxisAngle(_yawAxis, yawAngle);
+    const rollAmt = !isFloating && keys['ArrowLeft'] ? 0.38
+                  : !isFloating && keys['ArrowRight'] ? -0.38 : 0;
+    _rollQ.setFromAxisAngle(_rollAxis, rollAmt);
+    hero.quaternion.copy(_yawQ).multiply(_pitchQ).multiply(_rollQ);
 
-  // ── Movement ──
-  _fwd.set(0, 0, -1).applyQuaternion(hero.quaternion).normalize();
-  const _tentative = hero.position.clone().addScaledVector(_fwd, speed * dt);
-  _tentative.y = Math.max(4, _tentative.y);
+    // ── Movement ──
+    _fwd.set(0, 0, -1).applyQuaternion(hero.quaternion).normalize();
+    const _tentative = hero.position.clone().addScaledVector(_fwd, speed * dt);
+    _tentative.y = Math.max(4, _tentative.y);
 
-  // Building collision: sphere-cast against actual mesh geometry
-  if (!heroHitsBuilding(_tentative)) {
-    hero.position.copy(_tentative);
+    // Building collision: sphere-cast against actual mesh geometry
+    if (!heroHitsBuilding(_tentative)) {
+      hero.position.copy(_tentative);
+    } else {
+      // Allow vertical escape only
+      const _vertOnly = new THREE.Vector3(hero.position.x, _tentative.y, hero.position.z);
+      if (!heroHitsBuilding(_vertOnly)) hero.position.y = _tentative.y;
+    }
   } else {
-    // Allow vertical escape only
-    const _vertOnly = new THREE.Vector3(hero.position.x, _tentative.y, hero.position.z);
-    if (!heroHitsBuilding(_vertOnly)) hero.position.y = _tentative.y;
+    updateHeroDefeated(dt);
   }
 
   // ── Camera: shifts above hero when diving, below when climbing ──
@@ -1214,10 +1260,12 @@ function animate() {
   heroElectricGlow.intensity = boosting ? 5 + Math.sin(t * 22) * 2 : (isFloating ? 0.5 : 1.0);
 
   // ── Lightning (continuous while F held, fires every BOLT_COOLDOWN seconds) ──
-  lightningCooldown -= dt;
-  if (firingLightning && lightningCooldown <= 0) {
-    fireLightning();
-    lightningCooldown = BOLT_COOLDOWN;
+  if (!heroDefeated) {
+    lightningCooldown -= dt;
+    if (firingLightning && lightningCooldown <= 0) {
+      fireLightning();
+      lightningCooldown = BOLT_COOLDOWN;
+    }
   }
 
   if (boltGroup) {
