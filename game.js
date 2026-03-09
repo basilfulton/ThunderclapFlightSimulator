@@ -622,6 +622,14 @@ const ICE_TRAIL_CONFIGS = [
 ];
 const { bufs: iceTrailBufs, lines: iceTrailLines } = makeTrail(ICE_TRAIL_CONFIGS, -300, 150, 400);
 
+// Per-character trail lookup (used in animate loop to pick the right trail for the active player)
+const CHAR_TRAIL = {
+  hero:    { bufs: trailBufs,     lines: trailLines,     configs: TRAIL_CONFIGS },
+  inferno: { bufs: fireTrailBufs, lines: fireTrailLines, configs: FIRE_TRAIL_CONFIGS },
+  icicle:  { bufs: iceTrailBufs,  lines: iceTrailLines,  configs: ICE_TRAIL_CONFIGS },
+  foliage: { bufs: vineTrailBufs, lines: vineTrailLines, configs: VINE_TRAIL_CONFIGS },
+};
+
 // ─────────────────────────────────────────────
 //  CITY PLACEMENT
 // ─────────────────────────────────────────────
@@ -704,9 +712,9 @@ const INFERNO_AI_SPEED      = 38;
 const INFERNO_CHASE_RANGE   = 350;
 const INFERNO_ATTACK_RANGE  = 130;
 const INFERNO_FIRE_COOLDOWN = 0.10;  // seconds between shots (continuous stream)
-const INFERNO_FIRE_DAMAGE   = 3;    // damage per firebolt hit (reduced since firing rapidly)
-const LIGHTNING_DAMAGE      = 18;   // damage per lightning hit (player-controlled)
-const LIGHTNING_DAMAGE_AI   = 3;    // damage when Thunderclap is AI-controlled (matches villain damage)
+const INFERNO_FIRE_DAMAGE   = 3;    // damage per firebolt hit (AI-controlled)
+const LIGHTNING_DAMAGE_AI   = 3;    // damage when Thunderclap is AI-controlled
+const PLAYER_DAMAGE_MULTIPLIER = 6; // player-controlled characters deal 6x damage
 
 const ICICLE_MAX_HEALTH    = 100;
 const ICICLE_AI_SPEED      = 38;
@@ -891,6 +899,17 @@ function toggleFloat() {
     if (floatModel) floatModel.visible =  isFloating;
   }
 
+  // Orient villain models upright when hovering, restore flight pose when flying
+  [infernoModel, icicleModel, foliageModel].forEach(m => {
+    if (!m) return;
+    if (isFloating) {
+      m.rotation.set(0, Math.PI / 2, 0);
+    } else {
+      m.rotation.order = 'ZXY';
+      m.rotation.set(-Math.PI / 2 - 0.1, 0, -Math.PI / 2);
+    }
+  });
+
   floatBtn.textContent = isFloating ? '⏸ HOVER' : '▶ FLY';
   floatBtn.className   = isFloating ? 'hover-mode' : 'fly-mode';
 
@@ -1020,17 +1039,17 @@ function fireLightning(superBoosting = false) {
   // Check if bolt hits Inferno
   if (infernoState !== 'defeated' && infernoHealth > 0 &&
       distToSegment(origin, endPoint, inferno.position) < 9) {
-    takeDamage('inferno', LIGHTNING_DAMAGE);
+    takeDamage('inferno', LIGHTNING_DAMAGE_AI * PLAYER_DAMAGE_MULTIPLIER);
   }
   // Check if bolt hits Icicle
   if (icicleState !== 'defeated' && icicleHealth > 0 &&
       distToSegment(origin, endPoint, icicle.position) < 9) {
-    takeDamage('icicle', LIGHTNING_DAMAGE);
+    takeDamage('icicle', LIGHTNING_DAMAGE_AI * PLAYER_DAMAGE_MULTIPLIER);
   }
   // Check if bolt hits Foliage
   if (foliageState !== 'defeated' && foliageHealth > 0 &&
       distToSegment(origin, endPoint, foliage.position) < 9) {
-    takeDamage('foliage', LIGHTNING_DAMAGE);
+    takeDamage('foliage', LIGHTNING_DAMAGE_AI * PLAYER_DAMAGE_MULTIPLIER);
   }
 
   const impactStr = superBoosting ? 180 : 60;
@@ -1172,13 +1191,13 @@ function fireFirebolt(fromPlayer = false) {
     // Player-controlled: hit any target in path (except self)
     if (!blocked && !heroDefeated && playerChar !== 'hero' &&
         distToSegment(origin, endPoint, hero.position) < 9)
-      takeDamage('hero', INFERNO_FIRE_DAMAGE);
+      takeDamage('hero', INFERNO_FIRE_DAMAGE * PLAYER_DAMAGE_MULTIPLIER);
     if (!blocked && icicleState !== 'defeated' && playerChar !== 'icicle' &&
         distToSegment(origin, endPoint, icicle.position) < 9)
-      takeDamage('icicle', INFERNO_FIRE_DAMAGE);
+      takeDamage('icicle', INFERNO_FIRE_DAMAGE * PLAYER_DAMAGE_MULTIPLIER);
     if (!blocked && foliageState !== 'defeated' && playerChar !== 'foliage' &&
         distToSegment(origin, endPoint, foliage.position) < 9)
-      takeDamage('foliage', INFERNO_FIRE_DAMAGE);
+      takeDamage('foliage', INFERNO_FIRE_DAMAGE * PLAYER_DAMAGE_MULTIPLIER);
   } else {
     // AI-controlled: use target priority; target 'hero' means playerGroup
     if (!blocked && infernoAttackTarget === 'hero' && distToSegment(origin, endPoint, playerGroup.position) < 9) {
@@ -1273,13 +1292,13 @@ function fireIcebolt(fromPlayer = false) {
     // Player-controlled: hit any target in path (except self)
     if (!blocked && !heroDefeated && playerChar !== 'hero' &&
         distToSegment(origin, endPoint, hero.position) < 9)
-      takeDamage('hero', ICICLE_BEAM_DAMAGE);
+      takeDamage('hero', ICICLE_BEAM_DAMAGE * PLAYER_DAMAGE_MULTIPLIER);
     if (!blocked && infernoState !== 'defeated' && playerChar !== 'inferno' &&
         distToSegment(origin, endPoint, inferno.position) < 9)
-      takeDamage('inferno', ICICLE_BEAM_DAMAGE);
+      takeDamage('inferno', ICICLE_BEAM_DAMAGE * PLAYER_DAMAGE_MULTIPLIER);
     if (!blocked && foliageState !== 'defeated' && playerChar !== 'foliage' &&
         distToSegment(origin, endPoint, foliage.position) < 9)
-      takeDamage('foliage', ICICLE_BEAM_DAMAGE);
+      takeDamage('foliage', ICICLE_BEAM_DAMAGE * PLAYER_DAMAGE_MULTIPLIER);
   } else {
     // AI-controlled: use target priority; target 'hero' means playerGroup
     if (!blocked && icicleAttackTarget === 'hero' && distToSegment(origin, endPoint, playerGroup.position) < 9) {
@@ -1362,13 +1381,13 @@ function fireVines(fromPlayer = false) {
     // Player-controlled: hit any target in path (except self)
     if (!blocked && !heroDefeated && playerChar !== 'hero' &&
         distToSegment(origin, endPoint, hero.position) < 9)
-      takeDamage('hero', FOLIAGE_VINE_DAMAGE);
+      takeDamage('hero', FOLIAGE_VINE_DAMAGE * PLAYER_DAMAGE_MULTIPLIER);
     if (!blocked && infernoState !== 'defeated' && playerChar !== 'inferno' &&
         distToSegment(origin, endPoint, inferno.position) < 9)
-      takeDamage('inferno', FOLIAGE_VINE_DAMAGE);
+      takeDamage('inferno', FOLIAGE_VINE_DAMAGE * PLAYER_DAMAGE_MULTIPLIER);
     if (!blocked && icicleState !== 'defeated' && playerChar !== 'icicle' &&
         distToSegment(origin, endPoint, icicle.position) < 9)
-      takeDamage('icicle', FOLIAGE_VINE_DAMAGE);
+      takeDamage('icicle', FOLIAGE_VINE_DAMAGE * PLAYER_DAMAGE_MULTIPLIER);
   } else {
     // AI-controlled: use target priority; target 'hero' means playerGroup
     if (!blocked && foliageAttackTarget === 'hero' && distToSegment(origin, endPoint, playerGroup.position) < 9) {
@@ -1513,14 +1532,14 @@ function fireLightningAI() {
   const blocked = bHits.length > 0 && bHits[0].distance < origin.distanceTo(endPoint);
   if (blocked) endPoint = bHits[0].point.clone();
 
-  // Hit any target in path (hero AI never hits itself)
-  if (!blocked && infernoState !== 'defeated' && infernoHealth > 0 &&
+  // Hit any target in path (hero AI never hits itself; skip player-controlled villain since playerGroup check handles it)
+  if (!blocked && playerChar !== 'inferno' && infernoState !== 'defeated' && infernoHealth > 0 &&
       distToSegment(origin, endPoint, inferno.position) < 9)
     takeDamage('inferno', LIGHTNING_DAMAGE_AI);
-  if (!blocked && icicleState !== 'defeated' && icicleHealth > 0 &&
+  if (!blocked && playerChar !== 'icicle' && icicleState !== 'defeated' && icicleHealth > 0 &&
       distToSegment(origin, endPoint, icicle.position) < 9)
     takeDamage('icicle', LIGHTNING_DAMAGE_AI);
-  if (!blocked && foliageState !== 'defeated' && foliageHealth > 0 &&
+  if (!blocked && playerChar !== 'foliage' && foliageState !== 'defeated' && foliageHealth > 0 &&
       distToSegment(origin, endPoint, foliage.position) < 9)
     takeDamage('foliage', LIGHTNING_DAMAGE_AI);
   // Hit the player if they aren't Thunderclap
@@ -1631,10 +1650,11 @@ function updateInfernoAI(dt, t) {
     infernoDefeatedTimer -= dt;
     infernoDefeatedVelY  -= 90 * dt;
     inferno.position.y   += infernoDefeatedVelY * dt;
+    if (inferno.position.y < 1) { inferno.position.y = 1; infernoDefeatedVelY = 0; }
     inferno.rotation.z   += 3.0 * dt;
     inferno.rotation.x   += 1.5 * dt;
 
-    if ((inferno.position.y < -80 || infernoDefeatedTimer <= 0) && !infernoRespawning) {
+    if ((infernoDefeatedTimer <= 0) && !infernoRespawning) {
       inferno.visible   = false;
       infernoRespawning = true;
       setTimeout(() => {
@@ -1709,7 +1729,7 @@ function updateInfernoAI(dt, t) {
   while (dyaw >  Math.PI) dyaw -= Math.PI * 2;
   while (dyaw < -Math.PI) dyaw += Math.PI * 2;
   infernoAIYaw   += dyaw * Math.min(1, 2.5 * dt);
-  infernoAIPitch += (targetPitch - infernoAIPitch) * Math.min(1, 2.5 * dt);
+  infernoAIPitch += ((isFloating ? 0 : targetPitch) - infernoAIPitch) * Math.min(1, 2.5 * dt);
   infernoAIPitch  = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, infernoAIPitch));
 
   const iPitch = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), infernoAIPitch);
@@ -1745,10 +1765,11 @@ function updateIcicleAI(dt, t) {
     icicleDefeatedTimer -= dt;
     icicleDefeatedVelY  -= 90 * dt;
     icicle.position.y   += icicleDefeatedVelY * dt;
+    if (icicle.position.y < 1) { icicle.position.y = 1; icicleDefeatedVelY = 0; }
     icicle.rotation.z   += 3.0 * dt;
     icicle.rotation.x   += 1.5 * dt;
 
-    if ((icicle.position.y < -80 || icicleDefeatedTimer <= 0) && !icicleRespawning) {
+    if ((icicleDefeatedTimer <= 0) && !icicleRespawning) {
       icicle.visible   = false;
       icicleRespawning = true;
       setTimeout(() => {
@@ -1822,7 +1843,7 @@ function updateIcicleAI(dt, t) {
   while (dyaw >  Math.PI) dyaw -= Math.PI * 2;
   while (dyaw < -Math.PI) dyaw += Math.PI * 2;
   icicleAIYaw   += dyaw * Math.min(1, 2.5 * dt);
-  icicleAIPitch += (targetPitch - icicleAIPitch) * Math.min(1, 2.5 * dt);
+  icicleAIPitch += ((isFloating ? 0 : targetPitch) - icicleAIPitch) * Math.min(1, 2.5 * dt);
   icicleAIPitch  = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, icicleAIPitch));
 
   const icPitch = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), icicleAIPitch);
@@ -1858,10 +1879,11 @@ function updateFoliageAI(dt, t) {
     foliageDefeatedTimer -= dt;
     foliageDefeatedVelY  -= 90 * dt;
     foliage.position.y   += foliageDefeatedVelY * dt;
+    if (foliage.position.y < 1) { foliage.position.y = 1; foliageDefeatedVelY = 0; }
     foliage.rotation.z   += 3.0 * dt;
     foliage.rotation.x   += 1.5 * dt;
 
-    if ((foliage.position.y < -80 || foliageDefeatedTimer <= 0) && !foliageRespawning) {
+    if ((foliageDefeatedTimer <= 0) && !foliageRespawning) {
       foliage.visible   = false;
       foliageRespawning = true;
       setTimeout(() => {
@@ -1935,7 +1957,7 @@ function updateFoliageAI(dt, t) {
   while (dyaw_F >  Math.PI) dyaw_F -= Math.PI * 2;
   while (dyaw_F < -Math.PI) dyaw_F += Math.PI * 2;
   foliageAIYaw   += dyaw_F * Math.min(1, 2.5 * dt);
-  foliageAIPitch += (targetPitch_F - foliageAIPitch) * Math.min(1, 2.5 * dt);
+  foliageAIPitch += ((isFloating ? 0 : targetPitch_F) - foliageAIPitch) * Math.min(1, 2.5 * dt);
   foliageAIPitch  = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, foliageAIPitch));
 
   const fPitch = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), foliageAIPitch);
@@ -2101,11 +2123,16 @@ function animate() {
   camera.position.copy(camCurrentPos);
   camera.lookAt(camCurrentLook);
 
-  // ── Electricity trail (always visible, jitter intensifies during boost) ──
+  // ── Player trail (character-specific, shown during boost) ──
   trailTick++;
   const trailSpreads = [0.3, 1.0, 1.8];
-  for (let ti = 0; ti < trailBufs.length; ti++) {
-    const buf    = trailBufs[ti];
+  // Hide trails for all non-active characters
+  for (const [ch, data] of Object.entries(CHAR_TRAIL)) {
+    if (ch !== playerChar) data.lines.forEach(l => { l.line.visible = false; });
+  }
+  const { bufs: pBufs, lines: pLines, configs: pConfigs } = CHAR_TRAIL[playerChar];
+  for (let ti = 0; ti < pBufs.length; ti++) {
+    const buf    = pBufs[ti];
     const spread = trailSpreads[ti];
     for (let i = TRAIL_LEN - 1; i > 0; i--) {
       buf[i * 3]     = buf[(i - 1) * 3];
@@ -2116,9 +2143,9 @@ function animate() {
     buf[0] = playerGroup.position.x + (Math.random() - 0.5) * jitter;
     buf[1] = playerGroup.position.y + (Math.random() - 0.5) * jitter;
     buf[2] = playerGroup.position.z + (Math.random() - 0.5) * jitter;
-    trailLines[ti].geo.attributes.position.needsUpdate = true;
-    trailLines[ti].line.visible = boosting || superBoosting;
-    trailLines[ti].line.material.opacity = TRAIL_CONFIGS[ti][1];
+    pLines[ti].geo.attributes.position.needsUpdate = true;
+    pLines[ti].line.visible = boosting || superBoosting;
+    pLines[ti].line.material.opacity = pConfigs[ti][1];
   }
 
   // Electric glow: pulses hard during boost, dim otherwise
@@ -2151,7 +2178,7 @@ function animate() {
   updateInfernoAI(dt, t);
 
   // ── Inferno fire trail ──
-  updateVillainTrail(fireTrailBufs, fireTrailLines, inferno.position, inferno.visible, infernoState);
+  if (playerChar !== 'inferno') updateVillainTrail(fireTrailBufs, fireTrailLines, inferno.position, inferno.visible, infernoState);
 
   // ── Inferno bolt timer ──
   if (infernoBoltGroup) {
@@ -2163,7 +2190,7 @@ function animate() {
   updateIcicleAI(dt, t);
 
   // ── Icicle ice trail ──
-  updateVillainTrail(iceTrailBufs, iceTrailLines, icicle.position, icicle.visible, icicleState);
+  if (playerChar !== 'icicle') updateVillainTrail(iceTrailBufs, iceTrailLines, icicle.position, icicle.visible, icicleState);
 
   // ── Icicle bolt timer ──
   if (icicleBoltGroup) {
@@ -2175,7 +2202,7 @@ function animate() {
   updateFoliageAI(dt, t);
 
   // ── Foliage vine trail ──
-  updateVillainTrail(vineTrailBufs, vineTrailLines, foliage.position, foliage.visible, foliageState);
+  if (playerChar !== 'foliage') updateVillainTrail(vineTrailBufs, vineTrailLines, foliage.position, foliage.visible, foliageState);
 
   // ── Foliage bolt timer ──
   if (foliageBoltGroup) {
