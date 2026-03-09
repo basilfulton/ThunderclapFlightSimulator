@@ -238,13 +238,15 @@ function onAssetLoaded() {
 }
 
 const buildingFiles = [
-  'Building1.glb','Building2.glb','Building3.glb','Building4.glb','Building5.glb',
-  'Building6.glb','Building7.glb','Building8.glb','Building9.glb','Building10.glb',
-  'Building11.glb','Building12.glb','Building13.glb','Building14.glb','Building15.glb',
-  'Building16.glb','Building17.glb','Building18.glb','Building19.glb','Building20.glb',
-  'Building21.glb',
+  'city/building-type-a.glb','city/building-type-b.glb','city/building-type-c.glb',
+  'city/building-type-d.glb','city/building-type-e.glb','city/building-type-f.glb',
+  'city/building-type-g.glb','city/building-type-h.glb','city/building-type-i.glb',
+  'city/building-type-j.glb','city/building-type-k.glb','city/building-type-l.glb',
+  'city/building-type-m.glb','city/building-type-n.glb','city/building-type-o.glb',
+  'city/building-type-p.glb','city/building-type-q.glb','city/building-type-r.glb',
+  'city/building-type-s.glb','city/building-type-t.glb','city/building-type-u.glb',
 ];
-const treeFiles = ['Tree1.glb', 'Tree2.glb'];
+const treeFiles = ['city/tree-large.glb', 'city/tree-small.glb'];
 
 // 21 buildings + 2 trees + 2 hero models + 3 villain models = 28
 totalAssets = buildingFiles.length + treeFiles.length + 2 + 3;
@@ -342,6 +344,7 @@ const CHAR_TRAIL = {
 //  CITY PLACEMENT
 // ─────────────────────────────────────────────
 function buildCity() {
+  console.log('[buildCity] buildingGLBs loaded:', buildingGLBs.length);
   if (buildingGLBs.length === 0) return;
   setLoadProgress(82, 'CONSTRUCTING CITY...');
 
@@ -381,7 +384,7 @@ function buildCity() {
     building.position.set(x, 0, z);
     building.rotation.y = Math.random() * Math.PI * 2;
 
-    const s = 0.85 + Math.random() * 0.55;
+    const s = (0.85 + Math.random() * 0.55) * 20;
     building.scale.multiplyScalar(s);
 
     if (isSkyscraper) building.scale.y *= 4 + Math.random() * 5;
@@ -404,6 +407,11 @@ function buildCity() {
       tree.rotation.y = Math.random() * Math.PI * 2;
       scene.add(tree);
     }
+  }
+  console.log('[buildCity] placed:', placed.length, 'buildings');
+  if (placed.length > 0) {
+    const b = G.buildingData[0];
+    console.log('[buildCity] first building bbox:', b);
   }
 }
 
