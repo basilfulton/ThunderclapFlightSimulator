@@ -45,6 +45,8 @@ let icicleWaypointTimer = 0;
 let icicleAIYaw         = 0;
 let icicleAIPitch       = 0;
 let icicleFireCooldown  = 0;
+let icicleAvoidTimer    = 0;
+const icicleAvoidWaypoint = new THREE.Vector3();
 
 // ── Private bolt state ──
 let icicleBoltGroup = null;
@@ -228,7 +230,11 @@ export function updateIcicleAI(dt, t) {
   const icicleChasePos = icicleAttackTarget === 'inferno' ? G.inferno.position :
                          icicleAttackTarget === 'foliage' ? G.foliage.position : G.hero.position;
   let target;
-  if (G.icicleState === 'patrol') {
+  if (icicleAvoidTimer > 0) {
+    // Fly to the avoidance waypoint until clear of the building
+    icicleAvoidTimer -= dt;
+    target = icicleAvoidWaypoint;
+  } else if (G.icicleState === 'patrol') {
     icicleWaypointTimer -= dt;
     if (icicleWaypointTimer <= 0 || icicle.position.distanceTo(icicleWaypoint) < 40) {
       const angle  = Math.random() * Math.PI * 2;
@@ -248,14 +254,17 @@ export function updateIcicleAI(dt, t) {
   // ── Steer toward target ──
   const toTarget    = new THREE.Vector3().subVectors(target, icicle.position);
   const flatDist    = Math.sqrt(toTarget.x * toTarget.x + toTarget.z * toTarget.z);
-  const targetYaw   = Math.atan2(-toTarget.x, -toTarget.z);
+  // Weave the approach angle slightly when chasing to avoid circling orbits
+  const icicleChaseOffset = G.icicleState !== 'patrol' ? Math.sin(t * 0.85 + 1.0) * 0.22 : 0;
+  const targetYaw   = Math.atan2(-toTarget.x, -toTarget.z) + icicleChaseOffset;
   const targetPitch = Math.atan2(toTarget.y, flatDist + 0.001);
 
   let dyaw = targetYaw - icicleAIYaw;
   while (dyaw >  Math.PI) dyaw -= Math.PI * 2;
   while (dyaw < -Math.PI) dyaw += Math.PI * 2;
-  icicleAIYaw   += dyaw * Math.min(1, 2.5 * dt);
-  icicleAIPitch += ((G.isFloating ? 0 : targetPitch) - icicleAIPitch) * Math.min(1, 2.5 * dt);
+  const icicleHeadingError = Math.abs(dyaw);
+  icicleAIYaw   += dyaw * Math.min(1, 3.2 * dt);
+  icicleAIPitch += ((G.isFloating ? 0 : targetPitch) - icicleAIPitch) * Math.min(1, 3.2 * dt);
   icicleAIPitch  = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, icicleAIPitch));
 
   const icPitch = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), icicleAIPitch);
@@ -263,23 +272,30 @@ export function updateIcicleAI(dt, t) {
   icicle.quaternion.copy(icYaw).multiply(icPitch);
 
   // ── Move ──
-  const icicleSpeed = G.icicleState === 'attack' ? ICICLE_AI_SPEED * 0.6 : ICICLE_AI_SPEED;
-  const icfwd   = new THREE.Vector3(0, 0, -1).applyQuaternion(icicle.quaternion);
-  const icright = new THREE.Vector3(1, 0, 0).applyQuaternion(icicle.quaternion);
-  const icicleDistToTarget = icicle.position.distanceTo(icicleChasePos);
-  const tooClose        = G.icicleState === 'attack' && icicleDistToTarget < ICICLE_ATTACK_RANGE * 0.55;
-  const icicleFwdAmt    = tooClose ? 0 : icicleSpeed;
-  const icicleStrafeAmt = G.icicleState === 'attack' ? Math.sin(t * 1.7 + 2.3) * ICICLE_AI_SPEED * 0.55 : 0;
-  const icicleBobAmt    = G.icicleState === 'attack' ? Math.sin(t * 2.3 + 4.1) * ICICLE_AI_SPEED * 0.2  : 0;
+  // Slow down when not facing the target — breaks circular orbit patterns
+  const icicleHeadingScale = G.icicleState !== 'patrol'
+    ? Math.max(0.15, Math.cos(Math.min(icicleHeadingError, Math.PI / 2)))
+    : 1.0;
+  const icicleSpeed = (G.icicleState === 'attack' ? ICICLE_AI_SPEED * 0.6 : ICICLE_AI_SPEED) * icicleHeadingScale;
+  const icfwd = new THREE.Vector3(0, 0, -1).applyQuaternion(icicle.quaternion);
+  const icicleFwdAmt = icicleSpeed;
   const icicleTentative = icicle.position.clone()
-    .addScaledVector(icfwd,   icicleFwdAmt    * dt)
-    .addScaledVector(icright, icicleStrafeAmt * dt)
-    .addScaledVector(new THREE.Vector3(0, 1, 0), icicleBobAmt * dt);
+    .addScaledVector(icfwd, icicleFwdAmt * dt);
   icicleTentative.y = Math.max(15, icicleTentative.y);
   if (!heroHitsBuilding(icicleTentative)) {
     icicle.position.copy(icicleTentative);
   } else {
     icicle.position.y = Math.max(15, icicle.position.y);
+    // Set an avoidance waypoint sideways and upward so the AI doesn't
+    // immediately re-target through the building
+    const icicleEscapeAngle = icicleAIYaw + Math.PI / 2 * (Math.random() < 0.5 ? 1 : -1);
+    icicleAvoidWaypoint.set(
+      icicle.position.x + Math.sin(icicleEscapeAngle) * 180,
+      icicle.position.y + 90,
+      icicle.position.z + Math.cos(icicleEscapeAngle) * 180
+    );
+    icicleAvoidTimer    = 2.5;
+    icicleWaypointTimer = 0;
   }
 
   // Pulse ice glow

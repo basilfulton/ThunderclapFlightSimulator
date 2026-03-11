@@ -47,6 +47,8 @@ let heroWaypointTimer   = 0;
 let heroAIYaw           = 0;
 let heroAIPitch         = 0;
 let heroFireCooldown    = 0;
+let heroAvoidTimer      = 0;
+const heroAvoidWaypoint = new THREE.Vector3();
 
 // ── Private bolt state (two separate bolt groups: player bolt and AI bolt) ──
 let boltGroup    = null;  // player-controlled lightning
@@ -304,7 +306,11 @@ export function updateThunderclapAI(dt, t) {
                        heroAttackTarget === 'icicle'  ? G.icicle.position  : G.foliage.position;
 
   let target;
-  if (heroAIState === 'patrol') {
+  if (heroAvoidTimer > 0) {
+    // Fly to the avoidance waypoint until clear of the building
+    heroAvoidTimer -= dt;
+    target = heroAvoidWaypoint;
+  } else if (heroAIState === 'patrol') {
     heroWaypointTimer -= dt;
     if (heroWaypointTimer <= 0 || hero.position.distanceTo(heroWaypoint) < 40) {
       const angle  = Math.random() * Math.PI * 2;
@@ -324,14 +330,17 @@ export function updateThunderclapAI(dt, t) {
   // Steer toward target
   const toTarget    = new THREE.Vector3().subVectors(target, hero.position);
   const flatDist    = Math.sqrt(toTarget.x * toTarget.x + toTarget.z * toTarget.z);
-  const targetYaw   = Math.atan2(-toTarget.x, -toTarget.z);
+  // Weave the approach angle slightly when chasing to avoid circling orbits
+  const heroChaseOffset = heroAIState !== 'patrol' ? Math.sin(t * 0.70 + 0.5) * 0.28 : 0;
+  const targetYaw   = Math.atan2(-toTarget.x, -toTarget.z) + heroChaseOffset;
   const targetPitch = Math.atan2(toTarget.y, flatDist + 0.001);
 
   let dyaw = targetYaw - heroAIYaw;
   while (dyaw >  Math.PI) dyaw -= Math.PI * 2;
   while (dyaw < -Math.PI) dyaw += Math.PI * 2;
-  heroAIYaw   += dyaw * Math.min(1, 2.5 * dt);
-  heroAIPitch += (targetPitch - heroAIPitch) * Math.min(1, 2.5 * dt);
+  const heroHeadingError = Math.abs(dyaw);
+  heroAIYaw   += dyaw * Math.min(1, 1.4 * dt);
+  heroAIPitch += (targetPitch - heroAIPitch) * Math.min(1, 1.4 * dt);
   heroAIPitch  = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, heroAIPitch));
 
   const hPitch = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), heroAIPitch);
@@ -339,23 +348,30 @@ export function updateThunderclapAI(dt, t) {
   hero.quaternion.copy(hYaw).multiply(hPitch);
 
   // Move
-  const heroAISpeedActual = heroAIState === 'attack' ? HERO_AI_SPEED * 0.6 : HERO_AI_SPEED;
-  const hfwd   = new THREE.Vector3(0, 0, -1).applyQuaternion(hero.quaternion);
-  const hright = new THREE.Vector3(1, 0, 0).applyQuaternion(hero.quaternion);
-  const heroDistToTarget = hero.position.distanceTo(heroChasePos);
-  const tooClose      = heroAIState === 'attack' && heroDistToTarget < HERO_ATTACK_RANGE * 0.55;
-  const heroFwdAmt    = tooClose ? 0 : heroAISpeedActual;
-  const heroStrafeAmt = heroAIState === 'attack' ? Math.sin(t * 1.3) * HERO_AI_SPEED * 0.55 : 0;
-  const heroBobAmt    = heroAIState === 'attack' ? Math.sin(t * 2.1 + 0.7) * HERO_AI_SPEED * 0.2 : 0;
+  // Slow down when not facing the target — breaks circular orbit patterns
+  const heroHeadingScale = heroAIState !== 'patrol'
+    ? Math.max(0.15, Math.cos(Math.min(heroHeadingError, Math.PI / 2)))
+    : 1.0;
+  const heroAISpeedActual = (heroAIState === 'attack' ? HERO_AI_SPEED * 0.6 : HERO_AI_SPEED) * heroHeadingScale;
+  const hfwd = new THREE.Vector3(0, 0, -1).applyQuaternion(hero.quaternion);
+  const heroFwdAmt = heroAISpeedActual;
   const heroTentative = hero.position.clone()
-    .addScaledVector(hfwd,   heroFwdAmt    * dt)
-    .addScaledVector(hright, heroStrafeAmt * dt)
-    .addScaledVector(new THREE.Vector3(0, 1, 0), heroBobAmt * dt);
+    .addScaledVector(hfwd, heroFwdAmt * dt);
   heroTentative.y = Math.max(15, heroTentative.y);
   if (!heroHitsBuilding(heroTentative)) {
     hero.position.copy(heroTentative);
   } else {
     hero.position.y = Math.max(15, hero.position.y);
+    // Set an avoidance waypoint sideways and upward so the AI doesn't
+    // immediately re-target through the building
+    const heroEscapeAngle = heroAIYaw + Math.PI / 2 * (Math.random() < 0.5 ? 1 : -1);
+    heroAvoidWaypoint.set(
+      hero.position.x + Math.sin(heroEscapeAngle) * 180,
+      hero.position.y + 90,
+      hero.position.z + Math.cos(heroEscapeAngle) * 180
+    );
+    heroAvoidTimer    = 2.5;
+    heroWaypointTimer = 0;
   }
 
   // Pulse electric glow

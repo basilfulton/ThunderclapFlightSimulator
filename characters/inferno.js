@@ -45,6 +45,8 @@ let infernoWaypointTimer = 0;
 let infernoAIYaw         = 0;
 let infernoAIPitch       = 0;
 let infernoFireCooldown  = 0;
+let infernoAvoidTimer    = 0;
+const infernoAvoidWaypoint = new THREE.Vector3();
 
 // ── Private bolt state ──
 let infernoBoltGroup = null;
@@ -229,7 +231,11 @@ export function updateInfernoAI(dt, t) {
   const infernoChasePos = infernoAttackTarget === 'icicle'  ? G.icicle.position  :
                           infernoAttackTarget === 'foliage' ? G.foliage.position : G.hero.position;
   let target;
-  if (G.infernoState === 'patrol') {
+  if (infernoAvoidTimer > 0) {
+    // Fly to the avoidance waypoint until clear of the building
+    infernoAvoidTimer -= dt;
+    target = infernoAvoidWaypoint;
+  } else if (G.infernoState === 'patrol') {
     infernoWaypointTimer -= dt;
     if (infernoWaypointTimer <= 0 || inferno.position.distanceTo(infernoWaypoint) < 40) {
       const angle  = Math.random() * Math.PI * 2;
@@ -249,14 +255,17 @@ export function updateInfernoAI(dt, t) {
   // ── Steer toward target ──
   const toTarget    = new THREE.Vector3().subVectors(target, inferno.position);
   const flatDist    = Math.sqrt(toTarget.x * toTarget.x + toTarget.z * toTarget.z);
-  const targetYaw   = Math.atan2(-toTarget.x, -toTarget.z);
+  // Weave the approach angle slightly when chasing to avoid circling orbits
+  const infernoChaseOffset = G.infernoState !== 'patrol' ? Math.sin(t * 0.55) * 0.32 : 0;
+  const targetYaw   = Math.atan2(-toTarget.x, -toTarget.z) + infernoChaseOffset;
   const targetPitch = Math.atan2(toTarget.y, flatDist + 0.001);
 
   let dyaw = targetYaw - infernoAIYaw;
   while (dyaw >  Math.PI) dyaw -= Math.PI * 2;
   while (dyaw < -Math.PI) dyaw += Math.PI * 2;
-  infernoAIYaw   += dyaw * Math.min(1, 2.5 * dt);
-  infernoAIPitch += ((G.isFloating ? 0 : targetPitch) - infernoAIPitch) * Math.min(1, 2.5 * dt);
+  const infernoHeadingError = Math.abs(dyaw);
+  infernoAIYaw   += dyaw * Math.min(1, 1.6 * dt);
+  infernoAIPitch += ((G.isFloating ? 0 : targetPitch) - infernoAIPitch) * Math.min(1, 1.6 * dt);
   infernoAIPitch  = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, infernoAIPitch));
 
   const iPitch = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), infernoAIPitch);
@@ -264,23 +273,30 @@ export function updateInfernoAI(dt, t) {
   inferno.quaternion.copy(iYaw).multiply(iPitch);
 
   // ── Move ──
-  const infernoSpeed = G.infernoState === 'attack' ? INFERNO_AI_SPEED * 0.6 : INFERNO_AI_SPEED;
-  const ifwd   = new THREE.Vector3(0, 0, -1).applyQuaternion(inferno.quaternion);
-  const iright = new THREE.Vector3(1, 0, 0).applyQuaternion(inferno.quaternion);
-  const infernoDistToTarget = inferno.position.distanceTo(infernoChasePos);
-  const tooClose       = G.infernoState === 'attack' && infernoDistToTarget < INFERNO_ATTACK_RANGE * 0.55;
-  const infernoFwdAmt    = tooClose ? 0 : infernoSpeed;
-  const infernoStrafeAmt = G.infernoState === 'attack' ? Math.sin(t * 1.5 + 1.1) * INFERNO_AI_SPEED * 0.55 : 0;
-  const infernoBobAmt    = G.infernoState === 'attack' ? Math.sin(t * 1.8 + 2.5) * INFERNO_AI_SPEED * 0.2  : 0;
+  // Slow down when not facing the target — breaks circular orbit patterns
+  const infernoHeadingScale = G.infernoState !== 'patrol'
+    ? Math.max(0.15, Math.cos(Math.min(infernoHeadingError, Math.PI / 2)))
+    : 1.0;
+  const infernoSpeed = (G.infernoState === 'attack' ? INFERNO_AI_SPEED * 0.6 : INFERNO_AI_SPEED) * infernoHeadingScale;
+  const ifwd = new THREE.Vector3(0, 0, -1).applyQuaternion(inferno.quaternion);
+  const infernoFwdAmt = infernoSpeed;
   const infernoTentative = inferno.position.clone()
-    .addScaledVector(ifwd,   infernoFwdAmt    * dt)
-    .addScaledVector(iright, infernoStrafeAmt * dt)
-    .addScaledVector(new THREE.Vector3(0, 1, 0), infernoBobAmt * dt);
+    .addScaledVector(ifwd, infernoFwdAmt * dt);
   infernoTentative.y = Math.max(15, infernoTentative.y);
   if (!heroHitsBuilding(infernoTentative)) {
     inferno.position.copy(infernoTentative);
   } else {
     inferno.position.y = Math.max(15, inferno.position.y);
+    // Set an avoidance waypoint sideways and upward so the AI doesn't
+    // immediately re-target through the building
+    const infernoEscapeAngle = infernoAIYaw + Math.PI / 2 * (Math.random() < 0.5 ? 1 : -1);
+    infernoAvoidWaypoint.set(
+      inferno.position.x + Math.sin(infernoEscapeAngle) * 180,
+      inferno.position.y + 90,
+      inferno.position.z + Math.cos(infernoEscapeAngle) * 180
+    );
+    infernoAvoidTimer    = 2.5;
+    infernoWaypointTimer = 0;
   }
 
   // Pulse fire glow

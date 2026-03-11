@@ -35,6 +35,8 @@ let foliageWaypointTimer = 0;
 let foliageAIYaw         = 0;
 let foliageAIPitch       = 0;
 let foliageFireCooldown  = 0;
+let foliageAvoidTimer    = 0;
+const foliageAvoidWaypoint = new THREE.Vector3();
 
 // ── Private bolt state ──
 let foliageBoltGroup = null;
@@ -252,7 +254,11 @@ export function updateFoliageAI(dt, t) {
   const foliageChasePos = foliageAttackTarget === 'inferno' ? G.inferno.position :
                           foliageAttackTarget === 'icicle'  ? G.icicle.position  : G.hero.position;
   let target;
-  if (G.foliageState === 'patrol') {
+  if (foliageAvoidTimer > 0) {
+    // Fly to the avoidance waypoint until clear of the building
+    foliageAvoidTimer -= dt;
+    target = foliageAvoidWaypoint;
+  } else if (G.foliageState === 'patrol') {
     foliageWaypointTimer -= dt;
     if (foliageWaypointTimer <= 0 || foliage.position.distanceTo(foliageWaypoint) < 40) {
       const angle  = Math.random() * Math.PI * 2;
@@ -272,14 +278,17 @@ export function updateFoliageAI(dt, t) {
   // ── Steer toward target ──
   const toTarget    = new THREE.Vector3().subVectors(target, foliage.position);
   const flatDist    = Math.sqrt(toTarget.x * toTarget.x + toTarget.z * toTarget.z);
-  const targetYaw   = Math.atan2(-toTarget.x, -toTarget.z);
+  // Weave the approach angle slightly when chasing to avoid circling orbits
+  const foliageChaseOffset = G.foliageState !== 'patrol' ? Math.sin(t * 0.50 + 2.1) * 0.38 : 0;
+  const targetYaw   = Math.atan2(-toTarget.x, -toTarget.z) + foliageChaseOffset;
   const targetPitch = Math.atan2(toTarget.y, flatDist + 0.001);
 
   let dyaw = targetYaw - foliageAIYaw;
   while (dyaw >  Math.PI) dyaw -= Math.PI * 2;
   while (dyaw < -Math.PI) dyaw += Math.PI * 2;
-  foliageAIYaw   += dyaw * Math.min(1, 2.5 * dt);
-  foliageAIPitch += ((G.isFloating ? 0 : targetPitch) - foliageAIPitch) * Math.min(1, 2.5 * dt);
+  const foliageHeadingError = Math.abs(dyaw);
+  foliageAIYaw   += dyaw * Math.min(1, 2.1 * dt);
+  foliageAIPitch += ((G.isFloating ? 0 : targetPitch) - foliageAIPitch) * Math.min(1, 2.1 * dt);
   foliageAIPitch  = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, foliageAIPitch));
 
   const fPitch = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), foliageAIPitch);
@@ -287,23 +296,30 @@ export function updateFoliageAI(dt, t) {
   foliage.quaternion.copy(fYaw).multiply(fPitch);
 
   // ── Move ──
-  const foliageSpeed = G.foliageState === 'attack' ? FOLIAGE_AI_SPEED * 0.6 : FOLIAGE_AI_SPEED;
-  const ffwd   = new THREE.Vector3(0, 0, -1).applyQuaternion(foliage.quaternion);
-  const fright = new THREE.Vector3(1, 0, 0).applyQuaternion(foliage.quaternion);
-  const foliageDistToTarget = foliage.position.distanceTo(foliageChasePos);
-  const tooClose        = G.foliageState === 'attack' && foliageDistToTarget < FOLIAGE_ATTACK_RANGE * 0.55;
-  const foliageFwdAmt    = tooClose ? 0 : foliageSpeed;
-  const foliageStrafeAmt = G.foliageState === 'attack' ? Math.sin(t * 1.1 + 3.5) * FOLIAGE_AI_SPEED * 0.55 : 0;
-  const foliageBobAmt    = G.foliageState === 'attack' ? Math.sin(t * 1.9 + 0.3) * FOLIAGE_AI_SPEED * 0.2  : 0;
+  // Slow down when not facing the target — breaks circular orbit patterns
+  const foliageHeadingScale = G.foliageState !== 'patrol'
+    ? Math.max(0.15, Math.cos(Math.min(foliageHeadingError, Math.PI / 2)))
+    : 1.0;
+  const foliageSpeed = (G.foliageState === 'attack' ? FOLIAGE_AI_SPEED * 0.6 : FOLIAGE_AI_SPEED) * foliageHeadingScale;
+  const ffwd = new THREE.Vector3(0, 0, -1).applyQuaternion(foliage.quaternion);
+  const foliageFwdAmt = foliageSpeed;
   const foliageTentative = foliage.position.clone()
-    .addScaledVector(ffwd,   foliageFwdAmt    * dt)
-    .addScaledVector(fright, foliageStrafeAmt * dt)
-    .addScaledVector(new THREE.Vector3(0, 1, 0), foliageBobAmt * dt);
+    .addScaledVector(ffwd, foliageFwdAmt * dt);
   foliageTentative.y = Math.max(15, foliageTentative.y);
   if (!heroHitsBuilding(foliageTentative)) {
     foliage.position.copy(foliageTentative);
   } else {
     foliage.position.y = Math.max(15, foliage.position.y);
+    // Set an avoidance waypoint sideways and upward so the AI doesn't
+    // immediately re-target through the building
+    const foliageEscapeAngle = foliageAIYaw + Math.PI / 2 * (Math.random() < 0.5 ? 1 : -1);
+    foliageAvoidWaypoint.set(
+      foliage.position.x + Math.sin(foliageEscapeAngle) * 180,
+      foliage.position.y + 90,
+      foliage.position.z + Math.cos(foliageEscapeAngle) * 180
+    );
+    foliageAvoidTimer    = 2.5;
+    foliageWaypointTimer = 0;
   }
 
   // Pulse vine glow
